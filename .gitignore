@@ -1,0 +1,64 @@
+# ============================================
+# CareEase AI - .gitignore
+# ============================================
+
+# --- Python Virtual Environment ---
+backend/venv/
+backend/.venv/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.log
+
+# --- Sensitive Environment Variables (NEVER push .env with secrets) ---
+backend/.env
+.env
+.env.*
+!.env.example
+
+# --- Large Model Weights (too large for GitHub) ---
+backend/models/qwen-triage-adapter/
+backend/models/
+models/
+
+# --- Database Files ---
+backend/hospital.db
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Node.js / Frontend ---
+frontend/node_modules/
+node_modules/
+frontend/dist/
+dist/
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# --- Huggingface Cache ---
+.cache/
+*.cache
+
+# --- Pytest / Coverage ---
+.pytest_cache/
+.coverage
+htmlcov/

@@ -1,0 +1,54 @@
+CITY GENERAL HOSPITAL
+100 Metro Health Avenue, New Delhi - 110001
+Discharge Summary
+
+Patient Name: Pranesh Kumar
+Age: 24
+Gender: Male
+IPD No: IP-987214
+Date of Admission: 08-July-2026
+Date of Discharge: 12-July-2026
+Consulting Physician: Dr. Amit K. Sharma, MD (Internal Medicine)
+
+DIAGNOSIS:
+Acute Gastroenteritis with severe dehydration (recovered).
+
+CLINICAL HISTORY & COURSE IN HOSPITAL:
+Patient presented with a 2-day history of severe vomiting, watery diarrhea, abdominal cramps, and mild fever. On admission, patient was severely dehydrated and hypotensive (BP 90/60 mmHg). IV fluids (Normal Saline and Ringer's Lactate) were administered immediately. Injectable anti-emetics (Ondansetron) and antibiotics (Ciprofloxacin) were given. Stool cultures returned negative for cholera. By Day 3, patient tolerated oral feeds and diarrhea resolved. Discharged on stable vitals (BP 118/76 mmHg, Pulse 72/min).
+
+DISCHARGE MEDICATIONS:
+1. Tab Pantocid 40 mg (Pantoprazole)
+   Dosage: 1 tablet daily in the morning before food.
+   Duration: 5 days.
+   Purpose: For gastric protection and prevention of acidity.
+
+2. Tab Electral ORS (Oral Rehydration Salts)
+   Dosage: 1 sachet dissolved in 1 Liter of clean water, to be sipped throughout the day.
+   Duration: 3 days.
+   Purpose: To restore electrolyte balance and hydration.
+
+3. Tab Econorm 250 mg (Saccharomyces boulardii)
+   Dosage: 1 capsule twice daily (morning and night) after food.
+   Duration: 5 days.
+   Purpose: Probiotic to restore healthy gut bacteria.
+
+4. Tab Paracetamol 650 mg (Crocin)
+   Dosage: 1 tablet in afternoon or night only if fever exceeds 100°F or for body ache.
+   Duration: As needed (SOS).
+   Purpose: Pain relief and fever reduction.
+
+DIET & LIFESTYLE RESTRICTIONS:
+- Drink only boiled/purified warm water.
+- Consume soft, easily digestible food (Khichdi, curd rice, boiled potatoes, bananas, toast).
+- Avoid spicy food, deep-fried dishes, carbonated beverages, raw salads, and dairy products (except fresh curd/yogurt) for 1 week.
+- Take complete rest for the next 3 days. Do not engage in heavy lifting or strenuous exercise.
+
+WARNING SIGNS (RETURN TO EMERGENCY IMMEDIATELY IF):
+- Recurrence of persistent vomiting or inability to keep liquids down.
+- High fever (temperature above 101.5°F) unresponsive to Paracetamol.
+- Presence of blood or black color in stools.
+- Severe, unbearable abdominal pain.
+- Extreme dizziness, confusion, or passing very little urine.
+
+FOLLOW-UP APPOINTMENT:
+Please visit Dr. Amit Sharma in the OPD Clinic (Room No. 104) on July 20, 2026 (Monday) between 10:00 AM and 1:00 PM for review. Bring this discharge summary copy.
