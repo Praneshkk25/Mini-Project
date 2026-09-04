@@ -20,16 +20,29 @@ build/
 .eggs/
 *.log
 
-# --- Sensitive Environment Variables (NEVER push .env with secrets) ---
+# --- Sensitive Environment Variables & Keys (NEVER push secrets) ---
 backend/.env
 .env
 .env.*
 !.env.example
+*-firebase-adminsdk-*.json
+*firebase-admin*.json
+*serviceAccountKey*.json
+*.pem
+*.key
+credentials.json
 
-# --- Large Model Weights (too large for GitHub) ---
+
+# --- Large Model Weights & Datasets (too large for GitHub) ---
 backend/models/qwen-triage-adapter/
 backend/models/
 models/
+*.rar
+*.zip
+*.tar.gz
+backend/data/streaming/
+backend/app/models/heart_disease/train ecg images/
+
 
 # --- Database Files ---
 backend/hospital.db

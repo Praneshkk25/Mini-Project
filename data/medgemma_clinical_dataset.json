@@ -1,0 +1,17 @@
+[
+  {
+    "instruction": "Triage patient presenting with sudden crushing chest pain radiating to the left arm.",
+    "input": "Patient is a 54-year-old male with history of hypertension, diaphoresis, and BP 150/95.",
+    "output": "EMERGENCY_CODE: Red Flag Indicator. Immediate routing to Emergency Department and Cardiology Cath Lab. Initiate 12-lead ECG, oxygen monitoring, and bedside troponin-I assessment. Clinical Safety Notice: This is an emergency guidance and requires immediate physician intervention."
+  },
+  {
+    "instruction": "Explain prescription instructions to an outpatient taking Metformin 500mg and Pantocid 40mg.",
+    "input": "Prescribed by Dr. Sarah Jenkins (Cardiology/General Medicine).",
+    "output": "1. Pantocid 40mg: Take 1 tablet once daily in the morning, 30 minutes BEFORE breakfast with water.\n2. Metformin 500mg: Take 1 tablet twice daily WITH or immediately after meals to control blood sugar and prevent stomach upset.\n3. Pricing: Both medicines are available at the AuraPharmacy counter in INR (₹).\n4. Notice: Do not alter dosage without consulting your physician."
+  },
+  {
+    "instruction": "Determine appropriate clinical department for pediatric patient with high fever and ear discharge.",
+    "input": "3-year-old child with temperature 39.2°C, irritability, and left ear pain for 2 days.",
+    "output": "Suggested Department: Pediatrics / Pediatric ENT.\nTriage Level: Urgent.\nInitial intake guidance: Check vitals, keep child hydrated, avoid inserting cotton swabs in ear canal. Proceed to Pediatric triage counter."
+  }
+]

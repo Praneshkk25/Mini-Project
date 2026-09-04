@@ -170,3 +170,25 @@ def get_city_inventory(api_key: str = Security(validate_api_key)):
         }
     }
 
+
+@router.get("/hospitals")
+def search_city_hospitals(city: str = "Delhi NCR"):
+    """Public endpoint for patients to search real-time hospital bed availability by city."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    if city and city != "All":
+        cursor.execute("SELECT * FROM city_hospitals WHERE city LIKE ?", (f"%{city}%",))
+    else:
+        cursor.execute("SELECT * FROM city_hospitals")
+        
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    
+    return {
+        "selected_city": city,
+        "total_hospitals_found": len(rows),
+        "hospitals": rows
+    }
+
+

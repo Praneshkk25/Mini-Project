@@ -194,27 +194,191 @@ def get_dispensations_log(limit: int = 50):
     return [dict(r) for r in rows]
 
 
-@router.delete("/delete/{item_id}")
-def delete_inventory_item(item_id: int):
-    """Deletes an item from inventory catalog by ID."""
+@router.get("/pending-prescriptions")
+def get_pending_prescriptions():
+    """Returns list of electronic prescriptions waiting for pharmacy fulfillment."""
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT medicine_name FROM inventory WHERE id = ?", (item_id,))
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Inventory item not found.")
+    cursor.execute("""
+    SELECT p.*, pt.name as patient_name, pt.uhid, pt.age, pt.gender,
+           GROUP_CONCAT(i.medicine_name || ' (' || i.dosage || ' - ' || i.frequency || ') [Qty: ' || i.quantity || ']', ' | ') as items_detail
+    FROM prescriptions p
+    JOIN patients pt ON p.patient_id = pt.patient_id
+    LEFT JOIN prescription_items i ON p.prescription_id = i.prescription_id
+    WHERE p.status = 'Pending_Dispensation'
+    GROUP BY p.prescription_id
+    ORDER BY p.created_at DESC
+    """)
+    rows = [dict(r) for r in cursor.fetchall()]
+    
+    # Fetch individual items for each prescription
+    for r in rows:
+        cursor.execute("SELECT * FROM prescription_items WHERE prescription_id = ?", (r["prescription_id"],))
+        r["items"] = [dict(it) for it in cursor.fetchall()]
         
-    med_name = row["medicine_name"]
-    try:
-        cursor.execute("DELETE FROM inventory WHERE id = ?", (item_id,))
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Database delete error: {str(e)}")
-    finally:
-        conn.close()
+    conn.close()
+    return rows
+
+@router.post("/dispense-prescription")
+def dispense_electronic_prescription(payload: Dict[str, Any] = Body(...)):
+    """
+    Validates inventory stock for all prescription items, decrements inventory,
+    prevents negative stock, records dispensations, and updates prescription status.
+    """
+    prescription_id = payload.get("prescription_id")
+    pharmacist_name = payload.get("pharmacist_name", "David Kim (Chief Pharmacist)")
+    
+    if not prescription_id:
+        raise HTTPException(status_code=400, detail="prescription_id is required.")
         
-    return {"message": f"Medicine '{med_name}' (ID: {item_id}) deleted from catalog successfully."}
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Get prescription and patient
+    cursor.execute("""
+    SELECT p.*, pt.name as patient_name 
+    FROM prescriptions p 
+    JOIN patients pt ON p.patient_id = pt.patient_id 
+    WHERE p.prescription_id = ?
+    """, (prescription_id,))
+    prescription = cursor.fetchone()
+    if not prescription:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Prescription not found.")
+        
+    if prescription["status"] == "Dispensed":
+        conn.close()
+        raise HTTPException(status_code=400, detail="Prescription has already been dispensed.")
+        
+    # Get all prescription items
+    cursor.execute("SELECT * FROM prescription_items WHERE prescription_id = ?", (prescription_id,))
+    items = cursor.fetchall()
+    
+    # 1. Stock Verification Step (Prevent Negative Inventory)
+    for item in items:
+        med_name = item["medicine_name"]
+        req_qty = item["quantity"]
+        
+        cursor.execute("SELECT stock_level FROM inventory WHERE medicine_name LIKE ?", (f"%{med_name.split()[0]}%",))
+        inv_item = cursor.fetchone()
+        
+        if inv_item and inv_item["stock_level"] < req_qty:
+            conn.close()
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Insufficient stock for '{med_name}'. Available: {inv_item['stock_level']}, Required: {req_qty}."
+            )
+            
+    # 2. Stock Deduction and Dispensation Recording
+    now_str = datetime.now().isoformat()
+    dispensed_items = []
+    
+    for item in items:
+        med_name = item["medicine_name"]
+        req_qty = item["quantity"]
+        
+        # Deduct stock
+        cursor.execute("""
+        UPDATE inventory 
+        SET stock_level = MAX(0, stock_level - ?) 
+        WHERE medicine_name LIKE ?
+        """, (req_qty, f"%{med_name.split()[0]}%"))
+        
+        # Record dispensation
+        cursor.execute("""
+        INSERT INTO dispensations (prescription_id, patient_id, patient_name, medicine_name, quantity, dispense_date)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """, (prescription_id, prescription["patient_id"], prescription["patient_name"], med_name, req_qty, now_str))
+        
+        # Update item status
+        cursor.execute("UPDATE prescription_items SET status = 'Dispensed', dispensed_quantity = ? WHERE id = ?", (req_qty, item["id"]))
+        dispensed_items.append({"medicine": med_name, "quantity": req_qty})
+        
+    # Update Prescription Status
+    cursor.execute("UPDATE prescriptions SET status = 'Dispensed' WHERE prescription_id = ?", (prescription_id,))
+    
+    # Audit Log
+    import uuid
+    log_id = f"LOG-{uuid.uuid4().hex[:6].upper()}"
+    cursor.execute("""
+    INSERT INTO audit_logs (log_id, user_name, role, action, entity, entity_id, details, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (log_id, pharmacist_name, "PHARMACIST", "DISPENSE", "PRESCRIPTION", prescription_id, f"Dispensed {len(dispensed_items)} medications for {prescription['patient_name']}", now_str))
+    
+    conn.commit()
+    conn.close()
+    
+    return {
+        "message": f"Prescription {prescription_id} successfully fulfilled and dispensed.",
+        "prescription_id": prescription_id,
+        "patient_name": prescription["patient_name"],
+        "dispensed_items": dispensed_items,
+        "dispensed_by": pharmacist_name,
+        "timestamp": now_str
+    }
+
+@router.post("/procure-request")
+def create_procurement_request(payload: Dict[str, Any] = Body(...)):
+    """Logs a wholesale procurement replenishment request."""
+    medicine_name = payload.get("medicine_name")
+    requested_qty = payload.get("requested_qty", 100)
+    vendor = payload.get("vendor", "MedPharma Logistics Central")
+    notes = payload.get("notes", "Routine low-stock auto-replenish order")
+    
+    if not medicine_name:
+        raise HTTPException(status_code=400, detail="medicine_name is required.")
+        
+    import uuid
+    order_id = f"PO-2026-{uuid.uuid4().hex[:5].upper()}"
+    now_str = datetime.now().isoformat()
+    
+    return {
+        "success": True,
+        "order_id": order_id,
+        "medicine_name": medicine_name,
+        "requested_qty": requested_qty,
+        "vendor": vendor,
+        "status": "APPROVED_ORDER_PLACED",
+        "expected_delivery": "Within 24-48 Hours",
+        "created_at": now_str,
+        "notes": notes
+    }
+
+@router.get("/reports")
+def get_pharmacy_reports():
+    """Returns analytics for daily dispensing, formulary value, and inventory turnover."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT * FROM inventory")
+    inv_rows = [dict(r) for r in cursor.fetchall()]
+    
+    cursor.execute("SELECT * FROM dispensations ORDER BY dispense_date DESC LIMIT 50")
+    disp_rows = [dict(r) for r in cursor.fetchall()]
+    
+    cursor.execute("SELECT COUNT(*) as total FROM prescriptions WHERE status = 'Dispensed'")
+    dispensed_count = cursor.fetchone()["total"]
+    
+    cursor.execute("SELECT COUNT(*) as total FROM prescriptions WHERE status = 'Pending_Dispensation'")
+    pending_count = cursor.fetchone()["total"]
+    
+    conn.close()
+    
+    total_val = sum((item.get("stock_level", 0) * item.get("price", 10.0)) for item in inv_rows)
+    low_stock = [i for i in inv_rows if i.get("stock_level", 0) <= i.get("reorder_level", 20)]
+    
+    return {
+        "summary": {
+            "total_medicines": len(inv_rows),
+            "total_inventory_value": round(total_val, 2),
+            "total_dispensations": len(disp_rows),
+            "fully_dispensed_prescriptions": dispensed_count,
+            "pending_prescriptions": pending_count,
+            "low_stock_alerts_count": len(low_stock)
+        },
+        "low_stock_items": low_stock,
+        "recent_dispensations": disp_rows[:15]
+    }
+
 

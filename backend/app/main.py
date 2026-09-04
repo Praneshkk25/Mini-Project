@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Any, List
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.services import llm_service, tts_service
 from app import config
 from app.database import init_db
-from app.routes import queues, beds, inventory, city_wide
+from app.routes import queues, beds, inventory, city_wide, auth, appointments, heart_predictor, billing, monitoring, intake, consultations, audit, ambulance, ai
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -19,8 +19,8 @@ init_db()
 
 app = FastAPI(
     title="CareEase AI & Integrated Hospital Operations Backend", 
-    version="1.1.0",
-    description="Hospital Operations Console (Queues, Beds, Inventory) + AI Hospital Discharge Assistant"
+    version="2.0.0",
+    description="Multi-Portal Healthcare Management Console + MediKiosk AI Clinical Intake + Real-Time Telemetry"
 )
 
 # Setup CORS middleware
@@ -32,11 +32,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include new hospital operations routers
+# Include hospital operations & portal routers
+app.include_router(auth.router)
+app.include_router(intake.router)
+app.include_router(ai.router)
+app.include_router(consultations.router)
+app.include_router(appointments.router)
+app.include_router(heart_predictor.router)
+app.include_router(billing.router)
 app.include_router(queues.router)
 app.include_router(beds.router)
 app.include_router(inventory.router)
 app.include_router(city_wide.router)
+app.include_router(monitoring.router)
+app.include_router(audit.router)
+app.include_router(ambulance.router)
+
+# Real-Time WebSocket endpoint for patient vital streaming
+@app.websocket("/ws/monitoring")
+async def websocket_monitoring(websocket: WebSocket):
+    await monitoring.handle_monitoring_websocket(websocket)
 
 
 # AI Discharge Assistant schemas
@@ -72,10 +87,10 @@ def read_root():
             "City Integration Beds": "/api/city-wide/beds",
             "City Integration Queues": "/api/city-wide/queues",
             "City Integration Emergency": "/api/city-wide/emergency-status",
-            "City Integration Inventory": "/api/city-wide/inventory"
+            "City Integration Inventory": "/api/city-wide/inventory",
+            "Ambulance Dispatch": "/api/ambulance/dispatch"
         }
     }
-
 
 
 @app.post("/api/upload")

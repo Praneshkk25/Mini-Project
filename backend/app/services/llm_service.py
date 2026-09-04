@@ -4,8 +4,6 @@ import logging
 import re
 import os
 from typing import Dict, Any, List, Optional
-import pypdf
-import pdfplumber
 
 from app import config
 
@@ -22,59 +20,69 @@ _ft_tokenizer = None
 def get_gemini_model():
     global _gemini_model
     if _gemini_model is None:
-        import google.generativeai as genai
-        genai.configure(api_key=config.GEMINI_API_KEY)
-        # Using gemini-2.5-flash which is multimodal and fast
-        _gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=config.GEMINI_API_KEY)
+            _gemini_model = genai.GenerativeModel('gemini-2.5-flash')
+        except ImportError:
+            raise RuntimeError("google-generativeai package not installed. Install with `pip install google-generativeai`.")
     return _gemini_model
 
 def get_qwen_client():
     global _qwen_client
     if _qwen_client is None:
-        from openai import OpenAI
-        _qwen_client = OpenAI(
-            base_url=config.QWEN_API_BASE,
-            api_key=config.QWEN_API_KEY
-        )
+        try:
+            from openai import OpenAI
+            base_url = config.OLLAMA_API_BASE if config.LLM_PROVIDER in ["medgemma", "ollama"] else config.QWEN_API_BASE
+            api_key = config.OLLAMA_API_KEY if config.LLM_PROVIDER in ["medgemma", "ollama"] else config.QWEN_API_KEY
+            _qwen_client = OpenAI(
+                base_url=base_url,
+                api_key=api_key
+            )
+        except ImportError:
+            raise RuntimeError("openai package not installed. Install with `pip install openai`.")
     return _qwen_client
 
 def get_fine_tuned_model_and_tokenizer():
     global _ft_model, _ft_tokenizer
     if _ft_model is None:
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-        from peft import PeftModel
-        
-        # Check if local adapter exists
-        app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        project_root = os.path.dirname(app_dir)
-        adapter_path = os.path.join(project_root, "models", "qwen-triage-adapter")
-        base_model_id = config.LOCAL_FT_BASE_MODEL
-        
-        logger.info(f"Loading local tokenizer and base model: {base_model_id} on GPU...")
-        _ft_tokenizer = AutoTokenizer.from_pretrained(base_model_id, trust_remote_code=True)
-        _ft_tokenizer.pad_token = _ft_tokenizer.eos_token
-        
-        # Load in 4-bit for memory-saving VRAM efficiency
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_quant_type="nf4"
-        )
-        
-        base_model = AutoModelForCausalLM.from_pretrained(
-            base_model_id,
-            quantization_config=bnb_config,
-            device_map="auto",
-            trust_remote_code=True
-        )
-        
-        if os.path.exists(adapter_path):
-            logger.info(f"Loading local fine-tuned LoRA adapter from: {adapter_path}")
-            _ft_model = PeftModel.from_pretrained(base_model, adapter_path)
-        else:
-            logger.warning(f"LoRA adapter path NOT found at {adapter_path}. Defaulting to base model.")
-            _ft_model = base_model
+        try:
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+            from peft import PeftModel
+            
+            # Check if local adapter exists
+            app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            project_root = os.path.dirname(app_dir)
+            adapter_path = os.path.join(project_root, "models", "qwen-triage-adapter")
+            base_model_id = config.LOCAL_FT_BASE_MODEL
+            
+            logger.info(f"Loading local tokenizer and base model: {base_model_id} on GPU...")
+            _ft_tokenizer = AutoTokenizer.from_pretrained(base_model_id, trust_remote_code=True)
+            _ft_tokenizer.pad_token = _ft_tokenizer.eos_token
+            
+            # Load in 4-bit for memory-saving VRAM efficiency
+            bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_quant_type="nf4"
+            )
+            
+            base_model = AutoModelForCausalLM.from_pretrained(
+                base_model_id,
+                quantization_config=bnb_config,
+                device_map="auto",
+                trust_remote_code=True
+            )
+            
+            if os.path.exists(adapter_path):
+                logger.info(f"Loading local fine-tuned LoRA adapter from: {adapter_path}")
+                _ft_model = PeftModel.from_pretrained(base_model, adapter_path)
+            else:
+                logger.warning(f"LoRA adapter path NOT found at {adapter_path}. Defaulting to base model.")
+                _ft_model = base_model
+        except ImportError as e:
+            raise RuntimeError(f"HuggingFace local model dependencies not available: {e}")
             
     return _ft_model, _ft_tokenizer
 
@@ -108,10 +116,10 @@ def run_local_ft_inference(prompt: str, system_prompt: str = "") -> str:
 
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Extracts all text from a PDF file using pypdf and pdfplumber as fallback."""
+    """Extracts all text from a PDF file using pdfplumber and pypdf as fallback."""
     text = ""
     try:
-        # Try pdfplumber first as it handles tabular layout better
+        import pdfplumber
         with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
             pages_text = []
             for page in pdf.pages:
@@ -119,9 +127,14 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 if page_text:
                     pages_text.append(page_text)
             text = "\n".join(pages_text)
-            
-        if not text.strip():
-            # Fallback to pypdf
+    except ImportError:
+        pass
+    except Exception as e:
+        logger.warning(f"pdfplumber extraction failed ({e}), attempting pypdf fallback...")
+        
+    if not text.strip():
+        try:
+            import pypdf
             reader = pypdf.PdfReader(io.BytesIO(file_bytes))
             pages_text = []
             for page in reader.pages:
@@ -129,10 +142,11 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 if page_text:
                     pages_text.append(page_text)
             text = "\n".join(pages_text)
-    except Exception as e:
-        logger.error(f"Error extracting PDF text: {str(e)}")
-        raise ValueError("Failed to parse PDF document. Please ensure it is a valid PDF.")
-    
+        except ImportError:
+            logger.warning("Neither pdfplumber nor pypdf is installed.")
+        except Exception as e:
+            logger.error(f"pypdf extraction failed: {e}")
+            
     return text
 
 
@@ -260,17 +274,17 @@ def parse_discharge_summary(file_bytes: bytes, filename: str, file_type: str) ->
             logger.error(f"Local Fine-tuned Qwen processing error: {str(e)}")
             raise RuntimeError(f"Local Fine-tuned Qwen processing failed: {str(e)}")
             
-    else: # Qwen 2.5 Provider (Ollama or OpenAI-compatible)
+    else: # MedGemma / Qwen Provider (Ollama or OpenAI-compatible)
         try:
             client = get_qwen_client()
+            target_model = config.MEDGEMMA_MODEL_NAME if config.LLM_PROVIDER in ["medgemma", "ollama"] else config.QWEN_MODEL_NAME
             response = client.chat.completions.create(
-                model=config.QWEN_MODEL_NAME,
+                model=target_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": f"Document Content:\n{extracted_text}"}
                 ],
-                temperature=0.1,
-                response_format={"type": "json_object"} if "ollama" not in config.QWEN_API_BASE else None
+                temperature=0.1
             )
             cleaned_resp = clean_json_string(response.choices[0].message.content)
             parsed_data = json.loads(cleaned_resp)
@@ -278,8 +292,8 @@ def parse_discharge_summary(file_bytes: bytes, filename: str, file_type: str) ->
             return parsed_data
             
         except Exception as e:
-            logger.error(f"Qwen 2.5 processing error: {str(e)}")
-            raise RuntimeError(f"Local Qwen 2.5 processing failed. Ensure Ollama is running and has pulled {config.QWEN_MODEL_NAME}. Error: {str(e)}")
+            logger.error(f"MedGemma/Ollama processing error: {str(e)}")
+            raise RuntimeError(f"Local MedGemma/Ollama processing failed. Ensure Ollama is running and has pulled {config.MEDGEMMA_MODEL_NAME}. Error: {str(e)}")
 
 
 def explain_in_language(summary_json: Dict[str, Any], target_language: str) -> Dict[str, Any]:
