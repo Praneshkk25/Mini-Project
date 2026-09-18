@@ -12,9 +12,11 @@ from app.ai.tool_executor import ToolExecutor
 router = APIRouter(prefix="/api/ai", tags=["MedGemma AI"])
 
 class PatientQueryRequest(BaseModel):
-    query: str
+    query: Optional[str] = None
+    message: Optional[str] = None
     patient_id: Optional[str] = None
     role: str = "patient"
+    history: Optional[List[Dict[str, Any]]] = []
 
 class IntakeAnalysisRequest(BaseModel):
     chief_complaint: str
@@ -32,8 +34,16 @@ class ToolExecutionRequest(BaseModel):
 
 @router.post("/chat")
 def patient_ai_chat(req: PatientQueryRequest):
-    """Handles patient health inquiries with MedGemma reasoning and safety verification."""
-    result = MedGemmaService.answer_patient_query(req.query, {"patient_id": req.patient_id})
+    """Handles patient health inquiries with MedGemma reasoning and grounded patient context."""
+    user_prompt = (req.query or req.message or "").strip()
+    if not user_prompt:
+        raise HTTPException(status_code=400, detail="Query or message content is required.")
+
+    result = MedGemmaService.answer_patient_query(
+        user_prompt, 
+        patient_context={"patient_id": req.patient_id},
+        history=req.history
+    )
     return result
 
 @router.post("/intake/analyze")

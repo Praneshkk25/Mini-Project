@@ -6,12 +6,37 @@ export default function PatientTopHeader({ patient, onNavigate, onLogout }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [notifications, setNotifications] = useState([
     { id: 1, title: 'Prescription Ready', desc: 'Pantocid 40mg is dispensed by Central Pharmacy.', time: '10m ago', unread: true, type: 'pharmacy' },
-    { id: 2, title: 'OPD Queue Update', desc: 'Your Token #04 is now 2nd in line with Dr. Sarah Jenkins.', time: '25m ago', unread: true, type: 'queue' },
+    { id: 2, title: 'OPD Queue Update', desc: 'Your Token #04 is active in queue with Dr. Sarah Jenkins.', time: '25m ago', unread: true, type: 'queue' },
     { id: 3, title: 'Follow-Up Scheduled', desc: 'Cardiology consultation booked for 14-Sep-2026.', time: '2h ago', unread: false, type: 'appointment' }
   ]);
 
   const notifRef = useRef(null);
   const userRef = useRef(null);
+
+  const API_BASE = 'http://localhost:8000/api';
+
+  useEffect(() => {
+    if (!patient?.patient_id) return;
+    const fetchNotifs = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/notifications/patient/${patient.patient_id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.notifications && data.notifications.length > 0) {
+            setNotifications(data.notifications.map((n) => ({
+              id: n.notification_id || n.id,
+              title: n.title,
+              desc: n.message || n.desc,
+              time: n.created_at || 'Recently',
+              unread: !n.is_read,
+              type: n.category || 'general'
+            })));
+          }
+        }
+      } catch (e) {}
+    };
+    fetchNotifs();
+  }, [patient?.patient_id]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -38,8 +63,11 @@ export default function PatientTopHeader({ patient, onNavigate, onLogout }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div style={{ fontSize: '14px', fontWeight: 600, color: '#475569' }}>
           Patient Portal: <strong style={{ color: '#0f172a' }}>{patient.name}</strong>{' '}
-          <span style={{ fontSize: '12px', background: '#f1f5f9', color: '#0284c7', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
-            {patient.mrn || patient.uhid || 'MRN-884920'}
+          <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, marginLeft: '6px' }}>
+            MRN: {patient.mrn || patient.patient_id}
+          </span>
+          <span style={{ fontSize: '11px', background: patient.uhid ? '#f0fdf4' : '#f1f5f9', color: patient.uhid ? '#15803d' : '#64748b', padding: '2px 8px', borderRadius: '6px', fontWeight: 600, marginLeft: '6px' }}>
+            UHID: {patient.uhid || 'Not linked'}
           </span>
         </div>
       </div>

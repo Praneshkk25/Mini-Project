@@ -1,79 +1,97 @@
-# 🏥 CareEase AI & Integrated Hospital Operations Console
+# 🏥 CareEase AI & Integrated Hospital Operations Ecosystem
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110.0-009688.svg)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-19.2.7-61DAFB.svg)](https://react.dev/)
-[![Vite](https://img.shields.io/badge/Vite-8.1.1-646CFF.svg)](https://vitejs.dev/)
-[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4.3.3-38BDF8.svg)](https://tailwindcss.com/)
-[![LLM Support](https://img.shields.io/badge/LLM-Gemini_%7C_Qwen_2.5-orange.svg)](https://deepmind.google/technologies/gemini/)
+[![React](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.x-646CFF.svg)](https://vitejs.dev/)
+[![Databricks](https://img.shields.io/badge/Databricks-PySpark_Streaming-FF3621.svg)](https://www.databricks.com/)
+[![LLM Support](https://img.shields.io/badge/LLMs-Gemini_%7C_Qwen_2.5_%7C_MedGemma-orange.svg)](https://huggingface.co/Qwen)
+[![Model Soup](https://img.shields.io/badge/Fine--Tuning-QLoRA_Model_Soup-purple.svg)](https://arxiv.org/abs/2203.05482)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**CareEase AI** is an end-to-end, intelligent hospital operations management platform and patient care companion. Built to bridge clinical operational bottlenecks and post-discharge patient care, CareEase AI combines real-time OPD queue telemetry (powered by M/M/c queuing theory), intelligent AI triage symptom routing, predictive bed occupancy forecasting, hospital inventory tracking, city-wide inter-hospital network interoperability, and an AI-powered Multilingual Discharge Assistant.
+**CareEase AI** (AuraHealth Hospital Ecosystem) is an end-to-end, enterprise-grade healthcare management and clinical decision-support platform. It unites OPD queue telemetry (powered by M/M/c queuing theory), AI-driven clinical triage routing, real-time bedside vital telemetry streaming (Kafka + PySpark Medallion Lakehouse), bed occupancy forecasting, pharmacy inventory tracking, city-wide inter-hospital interoperability, and specialized clinical LLMs (Qwen 2.5, MedGemma, Google Gemini) fine-tuned with **Model Soups** for zero-latency clinical reasoning.
 
 ---
 
-## 🌟 Key Features
+## 🌟 Ecosystem Overview
+
+CareEase AI is engineered as a coordinated multi-service ecosystem serving four critical clinical roles:
+
+```
+                                  ┌────────────────────────┐
+                                  │   FastAPI Gateway      │
+                                  │   Port 8000            │
+                                  └──────────┬─────────────┘
+                                             │
+             ┌────────────────┬──────────────┴───────────────┬────────────────┐
+             ▼                ▼                              ▼                ▼
+     ┌──────────────┐ ┌──────────────┐               ┌──────────────┐ ┌──────────────┐
+     │ Main Console │ │ Patient App  │               │ Receptionist │ │  Doctor App  │
+     │  Port 5173   │ │  Port 5174   │               │  Port 5175   │ │  Port 5176   │
+     └──────────────┘ └──────────────┘               └──────────────┘ └──────────────┘
+```
+
+| Service / App | Port | Target Users | Key Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Main Operations Console** (`frontend`) | `5173` | Hospital Admin, Pharmacy, Kiosk | Admin telemetry, M/M/c OPD queue monitoring, pharmacy formulary, MediKiosk intake, city-wide hospital network. |
+| **Patient Care Companion** (`patient-app`) | `5174` | Patients & Caregivers | OPD token tracking, appointment booking, digital prescriptions, discharge summary reader, telemetry vitals, audio readouts, billing QR. |
+| **Receptionist Hub** (`receptionist-app`) | `5175` | Reception & Front Desk Staff | Rapid patient check-in, bed reservation & ward allocation, doctors & department scheduling, audit logs. |
+| **Doctor Station** (`doctor-app`) | `5176` | Attending Physicians | Patient consultation queue, clinical diagnosis workspace, real-time bedside vital alert panels. |
+| **Backend API Gateway** (`backend`) | `8000` | Microservices & External APIs | REST API, WebSocket streams, M/M/c math engine, LLM inference, clinical TTS, SQLite database. |
+
+---
+
+## 🚀 Key Features
 
 ### 📄 1. AI Hospital Discharge Assistant & Care Companion
-- **Document Parsing**: Automatic text and structured data extraction from medical discharge summaries in PDF or plain TXT format using `pdfplumber` and `pypdf`.
-- **Structured JSON Synthesis**: Converts complex medical jargon into organized schemas (Medications, Daily Timings, Diet & Lifestyle Restrictions, Warning Flags, Follow-up Details).
-- **Multilingual Patient Translation**: Translates medical summaries into regional Indian languages (Hindi, Tamil, Telugu, Kannada, Bengali, Marathi, Gujarati, Malayalam, etc.) tailored for patient comprehension.
-- **Audio Readout (Text-to-Speech)**: Real-time MP3 streaming text-to-speech powered by `gTTS` so patients and caregivers can listen to clear verbal instructions.
-- **Grounded RAG Chat Companion**: Interactive Q&A chatbot grounded strictly on the patient's specific discharge context to prevent hallucinations and offer reliable guidance.
+- **Document Ingestion**: Seamless PDF and TXT medical discharge summary extraction using `pdfplumber` and `pypdf`.
+- **Structured Synthesis**: Extracts diagnoses, active medications, dosage schedules, dietary restrictions, red-flag warning signs, and follow-up schedules into validated JSON.
+- **Multilingual Vernacular Translation**: Translates medical instructions into regional languages (Hindi, Tamil, Telugu, Kannada, Bengali, Marathi, Gujarati, Malayalam, etc.) with localized context and Indian Rupee (₹ INR) pricing.
+- **Audio Readout (Text-to-Speech)**: Real-time streaming MP3 audio instructions powered by `gTTS`.
+- **Grounded Clinical Chat**: Patient Q&A companion grounded strictly on the individual discharge document.
 
 ### 🏥 2. Real-Time OPD Queue Operations & Math Simulation
-- **M/M/c Queuing Theory Engine**: Evaluates doctor arrival rates ($\lambda$), service rates ($\mu$), and active consulting doctors ($c$) to compute doctor utilization, queue lengths, and estimated patient wait times.
-- **Smart AI Clinical Triage**: Rule-based NLP classifier mapping patient symptoms to appropriate clinical departments (Cardiology, Pediatrics, Orthopedics, Dermatology, General Medicine) with priority matrix flags (*Immediate*, *Urgent*, *Routine*).
-- **Live Queue Monitoring**: Operational view for nurses and clinic admins to track check-ins, consultation statuses, and doctor workload distribution.
+- **M/M/c Queuing Theory Engine**: Dynamically calculates arrival rate ($\lambda$), consultation service rate ($\mu$), and active physicians ($c$) to predict wait times, queue lengths, and doctor utilization rates.
+- **Smart Clinical Triage**: Evaluates patient symptoms and routes to appropriate specialties (*Cardiology, Neurology, Orthopedics, Pediatrics, Dermatology, General Medicine*) with urgency levels (*Immediate, Urgent, Standard*).
 
-### 🛏️ 3. Bed Management & Occupancy Forecasting
-- **Departmental Bed Allocation**: Real-time bed occupancy monitoring across ICU, Emergency, General Ward, and Specialty units.
-- **Predictive Occupancy Analytics**: Mathematical forecasting models helping hospital administrators anticipate bottleneck spikes before emergency rooms reach full capacity.
+### 📡 3. Real-Time Bedside Vital Telemetry & Databricks Lakehouse
+- **Synthetic Multi-Patient Telemetry Simulator**: Streams continuous bedside telemetry (Heart Rate, SpO2, Blood Pressure, Temperature, Respiration Rate).
+- **Medallion Data Lakehouse (PySpark / Databricks)**:
+  - `01_kafka_to_bronze.py`: Raw JSON streaming ingestion from Kafka topics.
+  - `02_bronze_to_silver.py`: Telemetry normalization, data cleaning, and clinical status tagging (NORMAL, WARNING, CRITICAL).
+  - `03_silver_to_gold.py`: Department-level sliding-window aggregations and emergency alert tables.
+  - `04_patient_alerts.py`: Real-time sepsis, hypoxemia, tachycardia, and hypertension alarm logic.
+- **Live WebSocket Broadcast**: Instant push notifications and live ECG visualizer to Doctor and Staff consoles.
 
-### 📦 4. Hospital Supply & Pharmacy Inventory
-- **Stock Telemetry**: Real-time catalog tracking essential pharmaceuticals, medical consumables, surgical kits, and equipment.
-- **Low Stock Alerts & Dispensations**: Automated alerts for critical threshold drops and dispensation logs.
+### 🛏️ 4. Bed Occupancy & Supply Chain Inventory
+- **Real-Time Bed Monitoring**: Departmental allocations across ICU, Emergency, General Ward, and Specialty suites with predictive surge forecasting.
+- **Pharmacy & Consumables Catalog**: Real-time stock counts, reorder thresholds, and dispensation audit logs.
 
-### 🌐 5. City-Wide Inter-Hospital Network Integration
-- **Regional Interoperability**: Unified API gateway for inter-hospital resource coordination.
-- **Emergency & Bed Sharing Network**: Cross-hospital visibility of emergency status, ICU bed availability, queue loads, and regional inventory sharing during crisis situations.
-
-### 🖥️ 6. Role-Based Specialized Dashboards
-- **Patient App / Care Companion**: Simple, intuitive view for uploading summaries, hearing audio instructions, and chatting with AI.
-- **Staff / Nurse Dashboard**: Queue registration, patient triage, bed assignments, and inventory logs.
-- **Doctor Dashboard**: Active patient queue management, triage review, consultation status updates.
-- **Admin Dashboard**: Comprehensive hospital telemetry, queuing theory metrics, bed occupancy forecasts, and stock inventory charts.
-- **City Operations Center View**: Regional map and telemetry hub for city-wide hospital network monitoring.
-
-### 📡 7. Real-Time Patient Vital Monitoring & Streaming Analytics
-- **Synthetic Patient Sensor Simulator**: Continuous multi-patient bedside telemetry simulator streaming Heart Rate, SpO2, Systolic & Diastolic BP, Temperature, and Respiratory Rate.
-- **Apache Kafka Ingestion**: Reliable JSON event producer streaming to `patient-vitals` and `patient-alerts` topics.
-- **PySpark Structured Streaming**: Real-time schema validation, timestamp normalization, and Medallion architecture (Bronze -> Silver -> Gold).
-- **Medallion Data Lake Architecture**:
-  - **Bronze**: Raw JSON Kafka ingestion stream.
-  - **Silver**: Cleaned telemetry with rule-based status flags (NORMAL, WARNING, CRITICAL).
-  - **Gold**: Sliding-window department aggregations and high-priority emergency alerts.
-- **Rule-Based Emergency Alert Engine**: Multi-parameter clinical threshold detector generating warnings for hypoxemia ($SpO_2 < 92\%$), severe tachycardia ($HR > 120$), hypertension, and fever.
-- **FastAPI WebSockets & Command Center UI**: Real-time WebSocket broadcasting to React command-center dashboard featuring live synthetic ECG visualizer, patient status grid, alert feed with audio alarm, and Databricks compatibility scripts.
+### 🌐 5. City-Wide Inter-Hospital Network
+- **Regional Interoperability**: Cross-hospital visibility of emergency room capacity, available ICU beds, and critical medicine stock across connected healthcare centers.
 
 ---
 
-## 🏗️ System Architecture & Tech Stack
+## 🧠 Clinical AI Models & Model Soup Fine-Tuning
 
-### **Backend Framework**
-- **Core Engine**: Python 3.10+, [FastAPI](https://fastapi.tiangolo.com/), Uvicorn.
-- **Database**: SQLite (`hospital.db`) with dynamic table initialization & mock telemetry seed.
-- **LLM Integrations**:
-  - **Google Gemini API** (`google-generativeai`): High-speed structured parsing and multilingual translation.
-  - **Qwen 2.5 via Ollama** (`qwen2.5:14b`): Local, privacy-preserving open-source LLM inference.
-  - **Custom Fine-Tuned Model**: Fine-tuned Qwen 2.5 adapter via PyTorch, PEFT (LoRA), TRL, Accelerate, and BitsAndBytes.
-- **Document Processing**: `pdfplumber`, `pypdf`, `python-multipart`.
-- **Audio Service**: `gTTS` (Google Text-to-Speech) with streaming `audio/mpeg` responses.
+CareEase AI supports three flexible LLM execution backends configured via `backend/.env`:
 
-### **Frontend Framework**
-- **Core UI**: React 19, [Vite](https://vitejs.dev/), React Router v7.
-- **Styling**: Modern Tailwind CSS v4, custom glassmorphism design system.
-- **UI Icons & Visualizations**: Lucide React (`lucide-react`), Recharts (`recharts`) for analytical charts and queuing trends.
+| Provider (`LLM_PROVIDER`) | Model Architecture | Hardware Requirement | Setup Details |
+| :--- | :--- | :--- | :--- |
+| **`gemini`** (Default Cloud) | Google Gemini 1.5 Pro / Flash | Any (API Key) | Set `GEMINI_API_KEY=...` in `.env` |
+| **`qwen`** (Local Ollama) | Qwen 2.5 (1.5B, 7B, 14B) | 4GB – 12GB VRAM | `ollama run qwen2.5:14b` |
+| **`qwen-local-ft`** (LoRA Adapter) | `Qwen/Qwen2.5-1.5B-Instruct` | 4GB – 6GB VRAM (4-bit QLoRA) | Loads adapter from `models/qwen-triage-adapter/` |
+| **`medgemma`** (Clinical Specialist) | Google Gemma 2 2B / MedGemma | 4GB – 8GB VRAM | Custom Modelfile and fine-tuned checkpoints |
+
+### 🥣 Model Soups (Weight-Averaged LoRA Adapters)
+Rather than training a single adapter, the platform utilizes **Model Souping** (averaging weights across multiple fine-tuning runs or task-specialized checkpoints):
+1. **Zero Added Inference Cost**: Maintains the exact parameter size and speed of a single LoRA adapter.
+2. **Enhanced Generalization**: Mitigates catastrophic forgetting across clinical triage, discharge synthesis, and telemetry alert reasoning.
+3. **Specialist Tasks**:
+   - Run 1 / Ingredient A: Clinical Triage & Emergency Red Flags (`data/qwen_soup_triage.jsonl`)
+   - Run 2 / Ingredient B: Discharge Summary & Medication Translation (`data/qwen_soup_discharge.jsonl`)
+   - Run 3 / Ingredient C: ICU & Bedside Vitals Telemetry (`data/qwen_soup_telemetry.jsonl`)
+4. **Weight Averaging**: Computed via $W_{soup} = \frac{1}{k}\sum_{i=1}^k W_i$ and saved directly to `models/qwen-triage-adapter/`.
 
 ---
 
@@ -81,56 +99,62 @@
 
 ```
 Mini-Project/
-├── backend/
+├── backend/                              # FastAPI Gateway & Business Logic
 │   ├── app/
 │   │   ├── routes/
-│   │   │   ├── beds.py           # Bed allocation & occupancy forecast API
-│   │   │   ├── city_wide.py      # Inter-hospital network integration API
-│   │   │   ├── inventory.py      # Pharmacy & supplies inventory API
-│   │   │   └── queues.py         # OPD queues & triage routing API
+│   │   │   ├── beds.py                   # Bed allocation & occupancy forecast API
+│   │   │   ├── city_wide.py              # Inter-hospital network coordination API
+│   │   │   ├── inventory.py              # Pharmacy & medical supplies API
+│   │   │   └── queues.py                 # OPD queues & triage routing API
 │   │   ├── services/
-│   │   │   ├── llm_service.py    # LLM document parser, translation & chat RAG
-│   │   │   └── tts_service.py    # Text-to-speech audio streaming service
-│   │   ├── ai_triage.py          # Clinical symptom triage classifier
-│   │   ├── config.py             # Environment configuration & provider loader
-│   │   ├── database.py           # SQLite database schema & mock seeder
-│   │   ├── main.py               # FastAPI gateway & AI Discharge endpoints
-│   │   └── queue_model.py        # M/M/c Queuing Theory calculation engine
-│   ├── data/                     # Data storage & dataset caches
-│   ├── scripts/
-│   │   ├── fine_tune_qwen.py     # Script to fine-tune Qwen 2.5 using LoRA (PEFT)
-│   │   └── generate_dataset.py   # Synthetic clinical dataset generator script
-│   ├── tests/                    # Backend unit & endpoint test suite
-│   ├── .env.example              # Environment variable config template
-│   ├── hospital.db               # SQLite database file
-│   └── requirements.txt          # Python dependencies
-├── frontend/
-│   ├── public/                   # Static web assets
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── AdminDashboard.jsx             # Admin telemetry & operational analytics
-│   │   │   ├── CareCompanion.jsx              # Patient discharge summary reader & chat
-│   │   │   ├── CityAPIs.jsx                   # City network API tester interface
-│   │   │   ├── CityView.jsx                   # City-wide hospital operations center view
-│   │   │   ├── DischargeSummaryAssistant.jsx  # Document upload & multilingual viewer
-│   │   │   ├── DoctorDashboard.jsx             # Doctor patient queue view
-│   │   │   ├── HospitalOps.jsx                # Full hospital management hub
-│   │   │   ├── PatientApp.jsx                 # Patient portal interface
-│   │   │   ├── PatientDischarge.jsx           # Discharge operations workspace
-│   │   │   └── StaffDashboard.jsx              # Nurse & receptionist operational view
-│   │   ├── App.jsx               # Main React router & layout manager
-│   │   ├── index.css             # Tailwind CSS & global design system
-│   │   ├── main.jsx              # React entrypoint
-│   │   └── mockData.js           # Frontend fallback mock data
-│   ├── package.json              # Frontend dependencies & scripts
-│   └── vite.config.js            # Vite build configuration
-├── sample_discharge_summary.txt  # Sample medical discharge document for testing
-└── README.md                     # Project documentation
+│   │   │   ├── llm_service.py            # Multi-provider LLM parser, translation & chat
+│   │   │   └── tts_service.py            # Text-to-speech audio streaming service
+│   │   ├── ai_triage.py                  # Clinical symptom triage classifier
+│   │   ├── config.py                     # Environment configuration loader
+│   │   ├── database.py                   # SQLite database schema & mock seeder
+│   │   ├── main.py                       # FastAPI application entry & WebSocket routes
+│   │   └── queue_model.py                # M/M/c Queuing Theory calculation engine
+│   ├── data/                             # Backend sample datasets
+│   ├── requirements.txt                  # Python dependencies
+│   └── .env.example                      # Environment configuration template
+├── frontend/                             # Main Operations & Pharmacy Console (Port 5173)
+│   ├── src/                              # React modules: Admin, Pharmacy, Kiosk, City
+│   └── package.json
+├── patient-app/                          # Patient Portal & Companion (Port 5174)
+│   ├── src/                              # OPD token, appointments, discharge, billing
+│   └── package.json
+├── receptionist-app/                     # Receptionist & Front Desk Hub (Port 5175)
+│   ├── src/                              # Patient check-in, bed reservation, staff ops
+│   └── package.json
+├── doctor-app/                           # Doctor Consultation Station (Port 5176)
+│   ├── src/                              # Consultation workspace, queue, bedside alerts
+│   └── package.json
+├── databricks/                           # Medallion Lakehouse PySpark Streaming
+│   ├── 01_kafka_to_bronze.py             # Kafka ingestion to Bronze Delta table
+│   ├── 02_bronze_to_silver.py            # Cleaning, validation & clinical alert flags
+│   ├── 03_silver_to_gold.py              # Departmental aggregations & vital trends
+│   └── 04_patient_alerts.py              # Emergency threshold alert engine
+├── data/                                 # Clinical & Model Soup Datasets
+│   ├── medgemma_soup_training_dataset.json # 9,800+ clinical training examples
+│   └── medgemma_clinical_dataset.json    # Clinical triage benchmark samples
+├── scripts/                              # Training, Souping & Simulator Tools
+│   ├── fine_tune_medgemma.py             # QLoRA fine-tuning for MedGemma
+│   ├── train_medgemma_lora.py            # LoRA training runs for Gemma
+│   ├── merge_medgemma_soup.py            # Weight averaging tool for MedGemma
+│   ├── start_simulator.py                # Bedside vital telemetry simulator
+│   └── create_medgemma_model.bat         # Batch script for Ollama model build
+├── models/                               # Local fine-tuned LoRA adapters
+├── run.bat                               # One-click startup script for all 4 apps + backend
+├── run_all_monitoring.bat                # Startup script with streaming telemetry
+├── soup.yaml                             # Model Soup training recipe for MedGemma
+├── Modelfile                             # Ollama Modelfile for clinical assistant
+├── sample_discharge_summary.txt          # Test clinical discharge summary
+└── README.md                             # Project documentation
 ```
 
 ---
 
-## ⚡ Getting Started
+## ⚡ Quick Start
 
 ### Prerequisites
 - **Python**: `3.10` or higher
@@ -139,156 +163,87 @@ Mini-Project/
 
 ---
 
-### 🐍 Backend Setup
+### 🚀 One-Click Multi-Service Launch (Windows)
 
-1. **Navigate to the backend directory**:
-   ```bash
-   cd backend
-   ```
-
-2. **Create and activate a virtual environment**:
-   - **Windows**:
-     ```powershell
-     python -m venv venv
-     .\venv\Scripts\activate
-     ```
-   - **macOS/Linux**:
-     ```bash
-     python3 -m venv venv
-     source venv/bin/activate
-     ```
-
-3. **Install backend dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure Environment Variables**:
-   Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-   Open `.env` and set your preferred settings. For Google Gemini:
-   ```ini
-   LLM_PROVIDER=gemini
-   GEMINI_API_KEY=your_google_gemini_api_key_here
-   PORT=8000
-   HOST=127.0.0.1
-   ```
-
-5. **Start the FastAPI Server**:
-   ```bash
-   python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-   ```
-   The backend API will start at `http://127.0.0.1:8000`. Access interactive API docs (Swagger UI) at `http://127.0.0.1:8000/docs`.
+Simply double-click or run:
+```bat
+run.bat
+```
+This automatically starts:
+1. **Backend API**: `http://127.0.0.1:8000` (API Docs: `http://127.0.0.1:8000/docs`)
+2. **Main Operations Console**: `http://localhost:5173`
+3. **Patient Companion App**: `http://localhost:5174`
+4. **Receptionist Desk**: `http://localhost:5175`
+5. **Doctor Station**: `http://localhost:5176`
 
 ---
 
-### ⚛️ Frontend Setup
+### 🛠️ Manual Step-by-Step Setup
 
-1. **Open a new terminal and navigate to the frontend directory**:
-   ```bash
-   cd frontend
-   ```
+#### 1. Backend Setup
+```bash
+cd backend
+python -m venv venv
 
-2. **Install Node modules**:
-   ```bash
-   npm install
-   ```
+# Windows
+.\venv\Scripts\activate
+# Linux/macOS
+source venv/bin/activate
 
-3. **Run the Development Server**:
-   ```bash
-   npm run dev
-   ```
+pip install -r requirements.txt
+cp .env.example .env
+```
 
-4. **Access the Application**:
-   Open your browser and navigate to `http://localhost:5173`.
+Configure `backend/.env` with your settings (e.g., `LLM_PROVIDER=gemini` and `GEMINI_API_KEY=your_key`).
+
+Start the server:
+```bash
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+#### 2. Frontend Applications Setup
+Open separate terminals for each app:
+
+```bash
+# Main Operations Console (Port 5173)
+cd frontend
+npm install
+npm run dev
+
+# Patient Companion App (Port 5174)
+cd patient-app
+npm install
+npm run dev
+
+# Receptionist Desk (Port 5175)
+cd receptionist-app
+npm install
+npm run dev
+
+# Doctor Station (Port 5176)
+cd doctor-app
+npm install
+npm run dev
+```
 
 ---
 
-## ⚙️ LLM Provider Configuration (`.env`)
+## 📡 Core API Reference
 
-CareEase AI supports three flexible LLM execution backends:
-
-| Provider Key (`LLM_PROVIDER`) | Description | Required Config Variables |
+| Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| **`gemini`** (Recommended) | High-speed cloud LLM via Google Gemini API | `GEMINI_API_KEY=your_key` |
-| **`qwen`** | Local private LLM via Ollama server | `QWEN_API_BASE=http://localhost:11434/v1`<br>`QWEN_MODEL_NAME=qwen2.5:14b` |
-| **`qwen-local-ft`** | Fine-tuned PyTorch model with local adapter | `LOCAL_FT_BASE_MODEL=Qwen/Qwen2.5-1.5B-Instruct` |
-
----
-
-## 📡 API Endpoint Reference
-
-### **1. AI Discharge Assistant Endpoints**
-- `POST /api/upload`: Upload PDF or TXT discharge summary, parse and return structured JSON.
-- `POST /api/explain`: Translate structured summary into a target regional language.
-- `POST /api/chat`: Grounded Q&A conversation based on discharge summary context.
-- `GET /api/tts?text=...&language=...`: Stream MP3 audio for speech synthesis.
-
-### **2. Hospital Operations & Queue Endpoints**
-- `GET /api/queues/status`: OPD queue status summary and M/M/c telemetry.
-- `GET /api/queues/list`: List active queue entries by department.
-- `POST /api/queues/triage`: Analyze symptoms and route patient to target department.
-
-### **3. Bed Management Endpoints**
-- `GET /api/beds/status`: Current departmental bed occupancy counts.
-- `GET /api/beds/forecast`: Bed occupancy forecast metrics.
-
-### **4. Inventory Endpoints**
-- `GET /api/inventory/list`: Current stock catalog of medicines and supplies.
-- `GET /api/inventory/dispensations`: Logs of medicine dispensations.
-
-### **5. City-Wide Integration Endpoints**
-- `GET /api/city-wide/beds`: Regional hospital network bed availability.
-- `GET /api/city-wide/queues`: Regional OPD load telemetry.
-- `GET /api/city-wide/emergency-status`: City emergency room status matrix.
-- `GET /api/city-wide/inventory`: Regional supply chain stock levels.
-
-### **6. Real-Time Patient Vital Monitoring Endpoints**
-- `GET /api/monitoring/patients`: Monitored patient telemetry snapshots.
-- `GET /api/monitoring/patients/{patient_id}`: Patient vital signs detail.
-- `GET /api/monitoring/vitals/history/{patient_id}`: Time-series vital trend history for line charts.
-- `GET /api/monitoring/alerts`: Threshold alert feed (Critical, Warning, Resolved).
-- `GET /api/monitoring/stats`: Aggregated hospital telemetry summary.
-- `POST /api/monitoring/simulator/start`: Start background telemetry stream.
-- `POST /api/monitoring/simulator/stop`: Pause background telemetry stream.
-- `POST /api/monitoring/simulator/patient/{patient_id}/critical`: Force emergency vital state trigger.
-- `GET /api/monitoring/stream/status`: Pipeline health status indicator.
-- `WS /ws/monitoring`: Real-time WebSocket connection for vital updates & alerts.
-
----
-
-## 🧪 Testing with Sample Data
-
-A pre-configured sample medical discharge summary is included in the project root:
-- **File**: `sample_discharge_summary.txt`
-- **Testing steps**:
-  1. Open the CareEase AI Frontend (`http://localhost:5173`).
-  2. Navigate to the **Discharge Assistant** / **Care Companion** module.
-  3. Upload `sample_discharge_summary.txt`.
-  4. View the parsed medications, dietary rules, and warning signs.
-  5. Select a regional language (e.g., *Hindi*, *Tamil*, *Telugu*) to translate and click **Play Audio** to test Text-to-Speech.
-  6. Use the AI Chat interface to ask questions such as *"What should I do if I get a high fever?"* or *"When is my follow-up appointment?"*.
-
----
-
-## 🏋️ Fine-Tuning Qwen 2.5 Model (Optional)
-
-To train a custom fine-tuned model for clinical triage and discharge summary extraction:
-
-1. **Generate Synthetic Training Dataset**:
-   ```bash
-   cd backend
-   python scripts/generate_dataset.py
-   ```
-   This creates JSONL training datasets inside `backend/data/`.
-
-2. **Run LoRA Fine-Tuning**:
-   ```bash
-   python scripts/fine_tune_qwen.py
-   ```
-   This uses `peft`, `trl`, `transformers`, and `bitsandbytes` to train a LoRA adapter saved under `backend/models/qwen-triage-adapter/`.
+| `/api/upload` | `POST` | Upload and parse discharge summary (PDF/TXT) into structured JSON. |
+| `/api/explain` | `POST` | Translate medical summary into regional language with patient-friendly instructions. |
+| `/api/chat` | `POST` | Grounded clinical Q&A companion. |
+| `/api/tts` | `GET` | Stream MP3 audio for synthesized speech readout. |
+| `/api/queues/status` | `GET` | Real-time OPD queue metrics and M/M/c doctor utilization. |
+| `/api/queues/triage` | `POST` | AI symptom analysis and priority department routing. |
+| `/api/beds/status` | `GET` | Departmental bed occupancy counts and utilization percentages. |
+| `/api/inventory/list` | `GET` | Real-time pharmacy stock and low-inventory warnings. |
+| `/api/city-wide/beds` | `GET` | Regional inter-hospital network bed availability. |
+| `/api/monitoring/patients` | `GET` | Real-time monitored bedside telemetry snapshots. |
+| `/api/monitoring/alerts` | `GET` | Multi-parameter clinical threshold alert feed. |
+| `/ws/monitoring` | `WS` | WebSocket stream for live patient telemetry & alarms. |
 
 ---
 
@@ -296,19 +251,17 @@ To train a custom fine-tuned model for clinical triage and discharge summary ext
 
 Contributions are welcome! Please follow these steps:
 1. Fork the repository.
-2. Create a new feature branch (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4. Push to the branch (`git push origin feature/AmazingFeature`).
+2. Create your feature branch (`git checkout -b feature/CareEaseFeature`).
+3. Commit your changes (`git commit -m 'Add CareEaseFeature'`).
+4. Push to the branch (`git push origin feature/CareEaseFeature`).
 5. Open a Pull Request.
 
 ---
 
 ## 📄 License
 
-Distributed under the MIT License. See `LICENSE` for more details.
-
----
+Distributed under the MIT License. See `LICENSE` for details.
 
 <p align="center">
-  Crafted with ❤️ for healthcare innovation.
+  Crafted with ❤️ for healthcare innovation and clinical workflow excellence.
 </p>

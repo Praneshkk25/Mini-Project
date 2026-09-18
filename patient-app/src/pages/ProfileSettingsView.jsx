@@ -2,15 +2,39 @@ import React, { useState, useEffect } from 'react';
 import { User, Phone, Mail, MapPin, Shield, Globe, Volume2, Bell, Lock, FileText, CheckCircle2, AlertTriangle, Edit3, Save, X } from 'lucide-react';
 
 const INDIAN_LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'hi', name: 'Hindi (हिन्दी)' },
-  { code: 'ta', name: 'Tamil (தமிழ்)' },
-  { code: 'te', name: 'Telugu (తెలుగు)' },
-  { code: 'kn', name: 'Kannada (ಕನ್ನಡ)' },
-  { code: 'ml', name: 'Malayalam (മലയാളം)' },
-  { code: 'bn', name: 'Bengali (বাংলা)' },
-  { code: 'mr', name: 'Marathi (मराठी)' },
-  { code: 'gu', name: 'Gujarati (ગુજરાતી)' }
+  // ── Indian languages ─────────────────────────────────────────────
+  { code: 'en',    name: 'English' },
+  { code: 'hi',    name: 'Hindi (हिन्दी)' },
+  { code: 'ta',    name: 'Tamil (தமிழ்)' },
+  { code: 'te',    name: 'Telugu (తెలుగు)' },
+  { code: 'kn',    name: 'Kannada (ಕನ್ನಡ)' },
+  { code: 'ml',    name: 'Malayalam (മലയാളം)' },
+  { code: 'bn',    name: 'Bengali (বাংলা)' },
+  { code: 'mr',    name: 'Marathi (मराठी)' },
+  { code: 'gu',    name: 'Gujarati (ગુજરાતી)' },
+  { code: 'pa',    name: 'Punjabi (ਪੰਜਾਬੀ)' },
+  { code: 'ur',    name: 'Urdu (اردو)' },
+  { code: 'or',    name: 'Odia (ଓଡ଼ିଆ)' },
+  { code: 'as',    name: 'Assamese (অসমীয়া)' },
+  { code: 'ne',    name: 'Nepali (नेपाली)' },
+  { code: 'si',    name: 'Sinhala (සිංහල)' },
+  // ── International languages ──────────────────────────────────────
+  { code: 'ar',    name: 'Arabic (العربية)' },
+  { code: 'fr',    name: 'French (Français)' },
+  { code: 'es',    name: 'Spanish (Español)' },
+  { code: 'de',    name: 'German (Deutsch)' },
+  { code: 'pt',    name: 'Portuguese (Português)' },
+  { code: 'ru',    name: 'Russian (Русский)' },
+  { code: 'ja',    name: 'Japanese (日本語)' },
+  { code: 'ko',    name: 'Korean (한국어)' },
+  { code: 'zh-CN', name: 'Chinese Simplified (中文简体)' },
+  { code: 'zh-TW', name: 'Chinese Traditional (中文繁體)' },
+  { code: 'it',    name: 'Italian (Italiano)' },
+  { code: 'tr',    name: 'Turkish (Türkçe)' },
+  { code: 'id',    name: 'Indonesian (Bahasa Indonesia)' },
+  { code: 'vi',    name: 'Vietnamese (Tiếng Việt)' },
+  { code: 'th',    name: 'Thai (ภาษาไทย)' },
+  { code: 'sw',    name: 'Swahili (Kiswahili)' },
 ];
 
 export default function ProfileSettingsView({ patient, onUpdateProfile }) {

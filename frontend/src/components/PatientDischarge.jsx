@@ -111,14 +111,39 @@ const UI_LABELS = {
 };
 
 const BCP47_LANG_CODES = {
-    "English": "en-IN",
-    "Hindi": "hi-IN",
-    "Tamil": "ta-IN",
-    "Telugu": "te-IN",
-    "Kannada": "kn-IN",
-    "Bengali": "bn-IN",
-    "Marathi": "mr-IN",
-    "Malayalam": "ml-IN"
+    // ── Indian languages ─────────────────────────────────────
+    "English":   "en-IN",
+    "Hindi":     "hi-IN",
+    "Tamil":     "ta-IN",
+    "Telugu":    "te-IN",
+    "Kannada":   "kn-IN",
+    "Bengali":   "bn-IN",
+    "Marathi":   "mr-IN",
+    "Malayalam": "ml-IN",
+    "Gujarati":  "gu-IN",
+    "Punjabi":   "pa-IN",
+    "Urdu":      "ur-IN",
+    "Odia":      "or-IN",
+    "Assamese":  "as-IN",
+    "Nepali":    "ne-NP",
+    "Sinhala":   "si-LK",
+    // ── International ────────────────────────────────────────
+    "Arabic":                  "ar-SA",
+    "French":                  "fr-FR",
+    "Spanish":                 "es-ES",
+    "German":                  "de-DE",
+    "Portuguese":              "pt-BR",
+    "Russian":                 "ru-RU",
+    "Japanese":                "ja-JP",
+    "Korean":                  "ko-KR",
+    "Chinese (Simplified)":    "zh-CN",
+    "Chinese (Traditional)":   "zh-TW",
+    "Italian":                 "it-IT",
+    "Turkish":                 "tr-TR",
+    "Indonesian":              "id-ID",
+    "Vietnamese":              "vi-VN",
+    "Thai":                    "th-TH",
+    "Swahili":                 "sw-KE",
 };
 
 export default function PatientDischarge({
@@ -227,31 +252,41 @@ export default function PatientDischarge({
         const labels = UI_LABELS[activeLanguage] || UI_LABELS["English"];
         const script = generateSpeechScript(parsedSummaryTranslated, labels);
 
-        const localSynth = window.speechSynthesis;
+        const localSynth = typeof window !== 'undefined' ? window.speechSynthesis : null;
         const localeCode = BCP47_LANG_CODES[activeLanguage];
 
         if (localSynth && localeCode) {
             try {
                 localSynth.cancel();
-                const utter = new SpeechSynthesisUtterance(script);
-                utter.lang = localeCode;
-                utter.rate = 0.9;
+                const voices = localSynth.getVoices() || [];
+                const langPrefix = localeCode.split('-')[0].toLowerCase();
+                const matchedVoice = voices.find(v => {
+                    const vl = (v.lang || '').toLowerCase();
+                    return vl === localeCode.toLowerCase() || vl.startsWith(langPrefix);
+                });
 
-                const voices = localSynth.getVoices();
-                const matchedVoice = voices.find(v => v.lang === localeCode || v.lang.startsWith(localeCode.split('-')[0]));
-                if (matchedVoice) utter.voice = matchedVoice;
+                // ONLY use browser synthesis if a voice matching this specific language is available!
+                // If no voice is installed for this language, browser would speak with default English voice.
+                if (matchedVoice) {
+                    const utter = new SpeechSynthesisUtterance(script);
+                    utter.lang = localeCode;
+                    utter.voice = matchedVoice;
+                    utter.rate = 0.9;
 
-                utter.onstart = () => setIsSpeaking(true);
-                utter.onend = () => setIsSpeaking(false);
-                utter.onerror = () => fallbackToBackendSpeech(script);
+                    utter.onstart = () => setIsSpeaking(true);
+                    utter.onend = () => setIsSpeaking(false);
+                    utter.onerror = () => fallbackToBackendSpeech(script);
 
-                localSynth.speak(utter);
-                return;
+                    localSynth.speak(utter);
+                    return;
+                }
             } catch (e) {
-                console.error("Local synth start failed:", e);
+                console.error("Local synth start failed, falling back to backend TTS:", e);
             }
         }
 
+        // Browser has no voice installed for this language (common for Indian languages on Windows)
+        // -> use high-quality backend gTTS
         fallbackToBackendSpeech(script);
     };
 

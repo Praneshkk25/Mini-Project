@@ -3,14 +3,39 @@ import React, { useState, useEffect, useRef } from 'react';
 const BACKEND_URL = "http://127.0.0.1:8000";
 
 const BCP47_LANG_CODES = {
-    "English": "en-IN",
-    "Hindi": "hi-IN",
-    "Tamil": "ta-IN",
-    "Telugu": "te-IN",
-    "Kannada": "kn-IN",
-    "Bengali": "bn-IN",
-    "Marathi": "mr-IN",
-    "Malayalam": "ml-IN"
+    // ── Indian languages ─────────────────────────────────────
+    "English":   "en-IN",
+    "Hindi":     "hi-IN",
+    "Tamil":     "ta-IN",
+    "Telugu":    "te-IN",
+    "Kannada":   "kn-IN",
+    "Bengali":   "bn-IN",
+    "Marathi":   "mr-IN",
+    "Malayalam": "ml-IN",
+    "Gujarati":  "gu-IN",
+    "Punjabi":   "pa-IN",
+    "Urdu":      "ur-IN",
+    "Odia":      "or-IN",
+    "Assamese":  "as-IN",
+    "Nepali":    "ne-NP",
+    "Sinhala":   "si-LK",
+    // ── International ────────────────────────────────────────
+    "Arabic":                  "ar-SA",
+    "French":                  "fr-FR",
+    "Spanish":                 "es-ES",
+    "German":                  "de-DE",
+    "Portuguese":              "pt-BR",
+    "Russian":                 "ru-RU",
+    "Japanese":                "ja-JP",
+    "Korean":                  "ko-KR",
+    "Chinese (Simplified)":    "zh-CN",
+    "Chinese (Traditional)":   "zh-TW",
+    "Italian":                 "it-IT",
+    "Turkish":                 "tr-TR",
+    "Indonesian":              "id-ID",
+    "Vietnamese":              "vi-VN",
+    "Thai":                    "th-TH",
+    "Swahili":                 "sw-KE",
 };
 
 export default function CareCompanion({ parsedSummaryEnglish, activeLanguage }) {

@@ -16,44 +16,66 @@ import HospitalBedSearchView from './pages/HospitalBedSearchView';
 import ProfileSettingsView from './pages/ProfileSettingsView';
 import FloatingCareCompanion from './components/FloatingCareCompanion';
 
-export default function App() {
-  const [patient, setPatient] = useState(null);
-  const [authView, setAuthView] = useState('login'); // 'login' | 'register'
-  const [activeTab, setActiveTab] = useState('dashboard');
+// Auth sub-screens
+const AUTH_VIEWS = {
+  LOGIN:    'login',
+  REGISTER: 'register',
+};
 
+export default function App() {
+  const [patient,   setPatient]   = useState(null);
+  const [authView,  setAuthView]  = useState(AUTH_VIEWS.LOGIN);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [isOnboardingFlow, setIsOnboardingFlow] = useState(false);
+
+  /* ─── Restore session from localStorage ─── */
   useEffect(() => {
     const saved = localStorage.getItem('aura_patient_user');
     if (saved) {
       try {
-        setPatient(JSON.parse(saved));
-      } catch (e) {}
-    } else {
-      const initialPatient = {
-        patient_id: 'PT-1001',
-        uhid: 'AUR-2026-001001',
-        mrn: 'MRN-884920',
-        name: 'James Robertson',
-        dob: '1968-05-14',
-        age: 58,
-        gender: 'Male',
-        blood_group: 'A+',
-        phone: '+91 98765 43210',
-        email: 'james.robertson@aurahealth.org',
-        hospital: 'AuraHealth Central Hospital',
-        address: '42 Residency Road, Indiranagar',
-        city: 'Bengaluru',
-        state: 'Karnataka',
-        pincode: '560038',
-        emergency_name: 'Sarah Robertson',
-        emergency_relation: 'Spouse',
-        emergency_phone: '+91 98765 43211',
-        allergies: 'None known',
-        language_preference: localStorage.getItem('aura_patient_language') || 'English'
-      };
-      setPatient(initialPatient);
-      localStorage.setItem('aura_patient_user', JSON.stringify(initialPatient));
+        const parsed = JSON.parse(saved);
+        if (parsed?.name) {
+          setPatient(parsed);
+          // If patient still hasn't completed onboarding, can open kiosk
+          if (parsed.onboarding_completed === false && parsed.is_new_registration) {
+            setActiveTab('kiosk');
+            setIsOnboardingFlow(true);
+          }
+        }
+      } catch {}
     }
   }, []);
+
+  const handleLoginSuccess = (u) => {
+    localStorage.setItem('aura_patient_user', JSON.stringify(u));
+    setPatient(u);
+    if (u.onboarding_completed === false) {
+      setActiveTab('kiosk');
+      setIsOnboardingFlow(true);
+    } else {
+      setActiveTab('dashboard');
+      setIsOnboardingFlow(false);
+    }
+  };
+
+  const handleRegistrationComplete = (newPt) => {
+    // Save to state and navigate DIRECTLY to MediKiosk AI Clinical Intake
+    const ptWithFlag = { ...newPt, is_new_registration: true, onboarding_completed: false };
+    localStorage.setItem('aura_patient_user', JSON.stringify(ptWithFlag));
+    setPatient(ptWithFlag);
+    setIsOnboardingFlow(true);
+    setActiveTab('kiosk');
+  };
+
+  const handleKioskComplete = () => {
+    if (patient) {
+      const updated = { ...patient, onboarding_completed: true, is_new_registration: false };
+      setPatient(updated);
+      localStorage.setItem('aura_patient_user', JSON.stringify(updated));
+    }
+    setIsOnboardingFlow(false);
+    setActiveTab('dashboard');
+  };
 
   const handleUpdateProfile = (updated) => {
     setPatient(updated);
@@ -63,51 +85,51 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('aura_patient_user');
     setPatient(null);
-    setAuthView('login');
+    setAuthView(AUTH_VIEWS.LOGIN);
+    setActiveTab('dashboard');
+    setIsOnboardingFlow(false);
   };
 
-  // If not logged in, display login or public registration
+  /* ─────────────────────────────────────────────
+     NOT LOGGED IN — show Login or Registration
+  ───────────────────────────────────────────── */
   if (!patient) {
-    if (authView === 'register') {
+    if (authView === AUTH_VIEWS.REGISTER) {
       return (
         <PublicPatientRegistration
-          onRegistrationComplete={(newPt) => {
-            setPatient(newPt);
-            setActiveTab('kiosk'); // Send new patient directly into MediKiosk!
-          }}
-          onBackToLogin={() => setAuthView('login')}
+          onRegistrationComplete={handleRegistrationComplete}
+          onBackToLogin={() => setAuthView(AUTH_VIEWS.LOGIN)}
         />
       );
     }
     return (
       <Login
-        onLoginSuccess={(u) => {
-          setPatient(u);
-          localStorage.setItem('aura_patient_user', JSON.stringify(u));
-          setActiveTab('dashboard');
-        }}
-        onGoToRegister={() => setAuthView('register')}
+        onLoginSuccess={handleLoginSuccess}
+        onGoToRegister={() => setAuthView(AUTH_VIEWS.REGISTER)}
       />
     );
   }
 
+  /* ─────────────────────────────────────────────
+     LOGGED IN — full portal
+  ───────────────────────────────────────────── */
   const PATIENT_SERVICES = [
-    { key: 'dashboard', label: '1. My Health Summary', icon: '🏠' },
-    { key: 'kiosk', label: '2. MediKiosk AI Intake', icon: '🩺' },
-    { key: 'appointments', label: '3. My Appointments', icon: '📅' },
-    { key: 'token', label: '4. My OPD Token', icon: '🎟️' },
-    { key: 'prescriptions', label: '5. My Prescriptions', icon: '💊' },
-    { key: 'vitals', label: '6. My Vitals & Telemetry', icon: '❤️' },
-    { key: 'documents', label: '7. Medical Documents', icon: '📁' },
-    { key: 'companion', label: '8. Multilingual Care Companion', icon: '💬' },
-    { key: 'followups', label: '9. Follow-Up Appointments', icon: '🔄' },
-    { key: 'billing', label: '10. My Bills & Payments', icon: '💳' },
-    { key: 'emergency', label: '11. Emergency / Bed Search & SOS', icon: '🚨' }
+    { key: 'dashboard',    label: '1. My Health Summary',           icon: '🏠' },
+    { key: 'kiosk',        label: '2. MediKiosk AI Intake',          icon: '🩺' },
+    { key: 'appointments', label: '3. My Appointments',              icon: '📅' },
+    { key: 'token',        label: '4. My OPD Token',                 icon: '🎟️' },
+    { key: 'prescriptions',label: '5. My Prescriptions',            icon: '💊' },
+    { key: 'vitals',       label: '6. My Vitals & Telemetry',        icon: '❤️' },
+    { key: 'documents',    label: '7. Medical Documents',            icon: '📁' },
+    { key: 'companion',    label: '8. Multilingual Care Companion',  icon: '💬' },
+    { key: 'followups',    label: '9. Follow-Up Appointments',       icon: '🔄' },
+    { key: 'billing',      label: '10. My Bills & Payments',         icon: '💳' },
+    { key: 'emergency',    label: '11. Emergency / Bed Search & SOS',icon: '🚨' },
   ];
 
   return (
     <div className="layout-container">
-      {/* Left Sidebar */}
+      {/* ── Left Sidebar ── */}
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-icon">👤</div>
@@ -117,8 +139,20 @@ export default function App() {
           </div>
         </div>
 
-        <div style={{ padding: '0 0.5rem 0.5rem', fontSize: '11px', color: '#64748b', fontWeight: 700 }}>
-          FACILITY: <span style={{ color: '#0284c7' }}>{patient.hospital || 'AuraHealth Central'}</span>
+        {/* Patient quick-info strip */}
+        <div style={{ padding: '10px 12px', margin: '0 0 10px', background: 'rgba(2,132,199,.08)', borderRadius: '10px', fontSize: '11px', border: '1px solid rgba(2,132,199,.15)' }}>
+          <div style={{ fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '12px' }}>
+            {patient.name}
+          </div>
+          <div style={{ color: '#475569', marginTop: '2px' }}>
+            MRN: <span style={{ color: '#0f172a', fontWeight: 700 }}>{patient.mrn || patient.patient_id}</span>
+          </div>
+          <div style={{ color: '#64748b', marginTop: '1px' }}>
+            UHID: <span style={{ color: patient.uhid ? '#0284c7' : '#94a3b8', fontWeight: 600 }}>{patient.uhid || 'Not linked'}</span>
+          </div>
+          <div style={{ color: '#0d9488', fontWeight: 600, marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            🏥 {patient.hospital || patient.primary_hospital_name || 'AuraHealth Central Hospital'}
+          </div>
         </div>
 
         <div className="nav-section">
@@ -129,7 +163,8 @@ export default function App() {
               className={`nav-item ${activeTab === item.key ? 'active' : ''}`}
               onClick={() => setActiveTab(item.key)}
             >
-              <span style={{ marginRight: '8px' }}>{item.icon}</span> {item.label}
+              <span style={{ marginRight: '8px' }}>{item.icon}</span>
+              {item.label}
             </button>
           ))}
         </div>
@@ -151,28 +186,44 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* ── Main Content ── */}
       <div className="main-wrapper">
         <PatientTopHeader patient={patient} onNavigate={setActiveTab} onLogout={handleLogout} />
 
         <main className="content-viewport" style={{ padding: '24px' }}>
-          {activeTab === 'dashboard' && <PatientDashboard patient={patient} onNavigate={setActiveTab} />}
-          {activeTab === 'kiosk' && <MediKioskView user={patient} onComplete={() => setActiveTab('dashboard')} />}
-          {activeTab === 'appointments' && <MyAppointmentsView patient={patient} />}
-          {activeTab === 'token' && <MyOPDTokenView patient={patient} />}
-          {activeTab === 'prescriptions' && <MyPrescriptionsView patient={patient} />}
-          {activeTab === 'vitals' && <MyVitalsTelemetryView patient={patient} />}
-          {activeTab === 'documents' && <MyMedicalDocumentsView patient={patient} />}
-          {activeTab === 'companion' && <AIChatCompanionView patient={patient} />}
-          {activeTab === 'followups' && <MyFollowUpsView patient={patient} />}
-          {activeTab === 'billing' && <MyBillsPaymentsView patient={patient} />}
-          {activeTab === 'emergency' && <HospitalBedSearchView />}
-          {activeTab === 'profile' && <ProfileSettingsView patient={patient} onUpdateProfile={handleUpdateProfile} />}
+          {activeTab === 'dashboard' && (
+            <PatientDashboard 
+              patient={patient} 
+              onNavigate={setActiveTab} 
+            />
+          )}
+
+          {activeTab === 'kiosk' && (
+            <MediKioskView
+              user={patient}
+              isOnboarding={isOnboardingFlow}
+              onComplete={handleKioskComplete}
+              onEditPatient={() => setActiveTab('profile')}
+            />
+          )}
+
+          {activeTab === 'appointments'  && <MyAppointmentsView patient={patient} onNavigate={setActiveTab} />}
+          {activeTab === 'token'         && <MyOPDTokenView patient={patient} onNavigate={setActiveTab} />}
+          {activeTab === 'prescriptions' && <MyPrescriptionsView patient={patient} onNavigate={setActiveTab} />}
+          {activeTab === 'vitals'        && <MyVitalsTelemetryView patient={patient} />}
+          {activeTab === 'documents'     && <MyMedicalDocumentsView patient={patient} onNavigate={setActiveTab} />}
+          {activeTab === 'companion'     && <AIChatCompanionView patient={patient} onNavigate={setActiveTab} />}
+          {activeTab === 'followups'     && <MyFollowUpsView patient={patient} onNavigate={setActiveTab} />}
+          {activeTab === 'billing'       && <MyBillsPaymentsView patient={patient} onNavigate={setActiveTab} />}
+          {activeTab === 'emergency'     && <HospitalBedSearchView patient={patient} onNavigate={setActiveTab} />}
+          {activeTab === 'profile'       && (
+            <ProfileSettingsView patient={patient} onUpdateProfile={handleUpdateProfile} />
+          )}
         </main>
       </div>
 
-      {/* Floating Care Companion AI Widget */}
-      <FloatingCareCompanion patient={patient} />
+      {/* ── Floating AI Companion (Unified across all screens) ── */}
+      <FloatingCareCompanion patient={patient} activeTab={activeTab} />
     </div>
   );
 }

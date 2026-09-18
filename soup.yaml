@@ -1,0 +1,33 @@
+# Soup template: MedGemma Clinical Specialist
+# Fine-tune MedGemma on RTX 3050 (6 GB VRAM) with 4-bit QLoRA
+
+base: google/medgemma-4b-it
+task: sft
+
+data:
+  train: ./data/medgemma_soup_training_dataset.json
+  format: alpaca
+  val_split: 0.1
+  max_length: 1024
+
+training:
+  epochs: 3
+  lr: 2e-4
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  lora:
+    r: 16
+    alpha: 32
+    target_modules:
+      - q_proj
+      - k_proj
+      - v_proj
+      - o_proj
+      - gate_proj
+      - up_proj
+      - down_proj
+  quantization: 4bit
+
+output: ./output/medgemma_run1
+
+

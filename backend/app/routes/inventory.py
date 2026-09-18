@@ -382,3 +382,20 @@ def get_pharmacy_reports():
     }
 
 
+@router.delete("/delete/{item_id}")
+@router.delete("/{item_id}")
+def delete_inventory_item(item_id: int):
+    """Deletes an item from inventory by ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM inventory WHERE id = ?", (item_id,))
+    item = cursor.fetchone()
+    if not item:
+        conn.close()
+        raise HTTPException(status_code=404, detail=f"Inventory item {item_id} not found.")
+    cursor.execute("DELETE FROM inventory WHERE id = ?", (item_id,))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": f"Inventory item {item_id} successfully deleted."}
+
+

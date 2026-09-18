@@ -162,18 +162,36 @@ export default function ReceptionOpsHub({ activeTab = 'dashboard', user, onSelec
   const [selectedPatientOverview, setSelectedPatientOverview] = useState(null);
   const [patientOverviewTab, setPatientOverviewTab] = useState('overview');
 
-  // Registration Form
+  // Registration Form — expanded
   const [regForm, setRegForm] = useState({
     name: '',
-    age: 35,
+    dob: '',
+    age: '',
     gender: 'Female',
     phone: '',
+    email: '',
+    address: '',
+    city: '',
+    state: 'Delhi',
+    pincode: '',
+    blood_group: 'O+',
+    allergies: 'None known',
+    conditions: 'None',
+    medications: 'None',
     abha_id: '',
+    emergency_name: '',
+    emergency_relation: 'Spouse',
+    emergency_phone: '',
     department: 'Cardiology',
     doctor: 'Dr. Sarah Jenkins',
-    chief_complaint: 'Routine cardiac follow-up'
+    chief_complaint: '',
+    visit_type: 'OPD Walk-In',
+    priority: 'Routine',
+    photo: null,        // placeholder — stores DataURL
   });
   const [duplicateWarning, setDuplicateWarning] = useState(null);
+  const [regSuccess, setRegSuccess]             = useState(null); // holds newly created patient
+  const [regStep, setRegStep]                   = useState(1);    // 1=Demographics 2=Clinical 3=Review
 
   // Check-In & Triage Workflow (5 Steps)
   const [checkinStep, setCheckinStep] = useState(1);
@@ -230,35 +248,55 @@ export default function ReceptionOpsHub({ activeTab = 'dashboard', user, onSelec
     }
   };
 
-  // 1. Submit Registration
+  // 1. Submit Registration (expanded)
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
-    const uhid = `UHID-2026-${Math.floor(100000 + Math.random() * 900000)}`;
+    const uhid  = `UHID-2026-${Math.floor(100000 + Math.random() * 900000)}`;
     const token = `0${appointments.length + 1}`;
 
     const newApt = {
-      id: `APT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      id:                `APT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
       appointment_token: token,
-      patient_name: regForm.name,
+      patient_name:      regForm.name,
       uhid,
-      patient_age: regForm.age,
-      gender: regForm.gender,
-      phone: regForm.phone,
-      doctor_name: regForm.doctor,
-      department: regForm.department,
-      date: new Date().toISOString().split('T')[0],
-      time_slot: '11:30 AM',
-      type: 'Outpatient Walk-In',
-      status: 'Checked-In',
-      priority: 'Routine'
+      patient_age:       Number(regForm.age) || 35,
+      gender:            regForm.gender,
+      phone:             regForm.phone,
+      doctor_name:       regForm.doctor,
+      department:        regForm.department,
+      date:              new Date().toISOString().split('T')[0],
+      time_slot:         'Walk-In',
+      type:              regForm.visit_type,
+      status:            'Checked-In',
+      priority:          regForm.priority,
     };
 
     setAppointments([newApt, ...appointments]);
-    setQueue([...queue, { token, patient_name: regForm.name, uhid, doctor: regForm.doctor, department: regForm.department, arrival: 'Just now', priority: 'Routine', status: 'Waiting', wait_time: '0m' }]);
+    setQueue([...queue, {
+      token,
+      patient_name: regForm.name,
+      uhid,
+      doctor:       regForm.doctor,
+      department:   regForm.department,
+      arrival:      new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      priority:     regForm.priority,
+      status:       'Waiting',
+      wait_time:    '0m',
+    }]);
 
-    alert(`✓ Registered patient ${regForm.name}!\nAssigned UHID: ${uhid}\nGenerated OPD Token #${token}`);
-    setRegForm({ name: '', age: 35, gender: 'Female', phone: '', abha_id: '', department: 'Cardiology', doctor: 'Dr. Sarah Jenkins', chief_complaint: '' });
+    setRegSuccess({ name: regForm.name, uhid, token });
+
+    // Reset form back to step 1
+    setRegForm({
+      name: '', dob: '', age: '', gender: 'Female', phone: '', email: '',
+      address: '', city: '', state: 'Delhi', pincode: '', blood_group: 'O+',
+      allergies: 'None known', conditions: 'None', medications: 'None',
+      abha_id: '', emergency_name: '', emergency_relation: 'Spouse', emergency_phone: '',
+      department: 'Cardiology', doctor: 'Dr. Sarah Jenkins',
+      chief_complaint: '', visit_type: 'OPD Walk-In', priority: 'Routine', photo: null,
+    });
     setDuplicateWarning(null);
+    setRegStep(1);
   };
 
   // 2. Submit Appointment Booking
@@ -451,95 +489,352 @@ export default function ReceptionOpsHub({ activeTab = 'dashboard', user, onSelec
         </div>
       )}
 
-      {/* 2. PATIENT REGISTRATION */}
-      {activeTab === 'registration' && (
-        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-          <div className="card" style={{ padding: '28px' }}>
-            <h2 style={{ margin: '0 0 6px 0', fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>
-              ➕ New Patient Demographic Registration
-            </h2>
-            <p style={{ margin: '0 0 20px 0', fontSize: '13px', color: '#64748b' }}>
-              Create permanent Hospital UHID and queue outpatient token.
-            </p>
+      {/* 2. PATIENT REGISTRATION — expanded 3-step form */}
+      {activeTab === 'registration' && (() => {
+        const iStyle = { width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' };
+        const lStyle = { fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '4px', color: '#334155' };
 
-            {duplicateWarning && (
-              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '12px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <AlertTriangle size={16} />
-                <strong>{duplicateWarning}</strong>
+        // Step labels
+        const REG_STEPS = ['1. Demographics', '2. Medical & Clinical', '3. Review & Confirm'];
+
+        // Auto age from DOB
+        const computeAge = (dob) => {
+          if (!dob) return '';
+          const today = new Date(), b = new Date(dob);
+          let age = today.getFullYear() - b.getFullYear();
+          if (today.getMonth() - b.getMonth() < 0 || (today.getMonth() === b.getMonth() && today.getDate() < b.getDate())) age--;
+          return age > 0 ? age : '';
+        };
+
+        const setF = (field, val) => setRegForm((prev) => ({ ...prev, [field]: val }));
+
+        return (
+          <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+
+            {/* Success banner */}
+            {regSuccess && (
+              <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '12px', padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <CheckCircle2 size={28} color="#10b981" />
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: '15px', color: '#15803d' }}>✓ Patient Registered Successfully!</div>
+                    <div style={{ fontSize: '13px', color: '#166534' }}>
+                      <strong>{regSuccess.name}</strong> &bull; UHID: <strong>{regSuccess.uhid}</strong> &bull; OPD Token: <strong>#{regSuccess.token}</strong>
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setRegSuccess(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}><X size={18} /></button>
               </div>
             )}
 
-            <form onSubmit={handleRegisterSubmit}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div className="card" style={{ padding: '28px' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Full Patient Name *</label>
-                  <input type="text" required placeholder="e.g. Ramesh Kumar" value={regForm.name} onChange={(e) => setRegForm({ ...regForm, name: e.target.value })} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
+                  <h2 style={{ margin: 0, fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>➕ New Patient Registration</h2>
+                  <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748b' }}>Create permanent Hospital UHID and generate an OPD queue token.</p>
                 </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Age (Years) *</label>
-                    <input type="number" required value={regForm.age} onChange={(e) => setRegForm({ ...regForm, age: e.target.value })} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Gender *</label>
-                    <select value={regForm.gender} onChange={(e) => setRegForm({ ...regForm, gender: e.target.value })} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                      <option>Female</option>
-                      <option>Male</option>
-                      <option>Other</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Phone Number (10 Digits) *</label>
-                    <input type="tel" required placeholder="+91 98765 43210" value={regForm.phone} onChange={(e) => handlePhoneOrAbhaChange('phone', e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>ABHA Address / National ID</label>
-                    <input type="text" placeholder="e.g. ramesh@abdm" value={regForm.abha_id} onChange={(e) => handlePhoneOrAbhaChange('abha_id', e.target.value)} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Clinical Department *</label>
-                    <select value={regForm.department} onChange={(e) => setRegForm({ ...regForm, department: e.target.value })} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                      <option>Cardiology</option>
-                      <option>Neurology</option>
-                      <option>General Medicine</option>
-                      <option>Orthopedics</option>
-                      <option>Pediatrics</option>
-                      <option>Emergency</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Attending Physician *</label>
-                    <select value={regForm.doctor} onChange={(e) => setRegForm({ ...regForm, doctor: e.target.value })} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
-                      <option>Dr. Sarah Jenkins (Cardiology)</option>
-                      <option>Dr. Arun Kumar (Neurology)</option>
-                      <option>Dr. Priya Sharma (General Medicine)</option>
-                      <option>Dr. Rajesh Menon (Orthopedics)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 700, display: 'block', marginBottom: '4px' }}>Chief Complaint / Visit Purpose</label>
-                  <input type="text" placeholder="e.g. Chest discomfort, routine check-up" value={regForm.chief_complaint} onChange={(e) => setRegForm({ ...regForm, chief_complaint: e.target.value })} style={{ width: '100%', padding: '9px', borderRadius: '8px', border: '1px solid #cbd5e1' }} />
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-                  <button type="submit" className="btn-primary" style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 800 }}>
-                    Register & Generate UHID + Token
-                  </button>
+                {/* Step indicator */}
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {REG_STEPS.map((label, idx) => (
+                    <div key={idx} style={{
+                      padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
+                      background: regStep === idx + 1 ? '#0284c7' : regStep > idx + 1 ? '#10b981' : '#e2e8f0',
+                      color: regStep >= idx + 1 ? '#fff' : '#94a3b8',
+                    }}>{label}</div>
+                  ))}
                 </div>
               </div>
-            </form>
+
+              {/* Duplicate warning */}
+              {duplicateWarning && (
+                <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertTriangle size={15} /><strong>{duplicateWarning}</strong>
+                </div>
+              )}
+
+              <form onSubmit={handleRegisterSubmit}>
+
+                {/* ── STEP 1: DEMOGRAPHICS ── */}
+                {regStep === 1 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+                    {/* Photo upload */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                      <div style={{
+                        width: '72px', height: '72px', borderRadius: '50%', border: '2px dashed #94a3b8',
+                        background: regForm.photo ? `url(${regForm.photo}) center/cover` : '#f1f5f9',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', flexShrink: 0,
+                      }}>
+                        {!regForm.photo && '👤'}
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>Patient Photo (Optional)</div>
+                        <label style={{
+                          background: '#0284c7', color: '#fff', padding: '6px 14px', borderRadius: '6px',
+                          fontSize: '12px', fontWeight: 700, cursor: 'pointer', display: 'inline-block',
+                        }}>
+                          📷 Upload Photo
+                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (ev) => setF('photo', ev.target.result);
+                              reader.readAsDataURL(file);
+                            }
+                          }} />
+                        </label>
+                        {regForm.photo && <button type="button" onClick={() => setF('photo', null)} style={{ marginLeft: '8px', background: 'none', border: 'none', color: '#ef4444', fontSize: '12px', cursor: 'pointer', fontWeight: 700 }}>Remove</button>}
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>JPG, PNG — max 2 MB</div>
+                      </div>
+                    </div>
+
+                    {/* Name + Gender */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={lStyle}>Full Patient Name <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input type="text" required placeholder="e.g. Ramesh Kumar" value={regForm.name}
+                          onChange={(e) => setF('name', e.target.value)} style={iStyle} />
+                      </div>
+                      <div>
+                        <label style={lStyle}>Gender <span style={{ color: '#ef4444' }}>*</span></label>
+                        <select value={regForm.gender} onChange={(e) => setF('gender', e.target.value)} style={iStyle}>
+                          <option>Female</option><option>Male</option><option>Other</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* DOB + Age + Blood Group */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={lStyle}>Date of Birth <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input type="date" required value={regForm.dob} max={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => { setF('dob', e.target.value); setF('age', computeAge(e.target.value)); }} style={iStyle} />
+                      </div>
+                      <div>
+                        <label style={lStyle}>Age (auto-calculated)</label>
+                        <input type="text" readOnly value={regForm.age} placeholder="From DOB"
+                          style={{ ...iStyle, background: '#f8fafc', color: '#475569' }} />
+                      </div>
+                      <div>
+                        <label style={lStyle}>Blood Group</label>
+                        <select value={regForm.blood_group} onChange={(e) => setF('blood_group', e.target.value)} style={iStyle}>
+                          {['A+','A−','B+','B−','AB+','AB−','O+','O−','Unknown'].map(b => <option key={b}>{b}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Phone + Email */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={lStyle}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
+                        <input type="tel" required placeholder="+91 98765 43210" value={regForm.phone}
+                          onChange={(e) => handlePhoneOrAbhaChange('phone', e.target.value)} style={iStyle} />
+                      </div>
+                      <div>
+                        <label style={lStyle}>Email Address</label>
+                        <input type="email" placeholder="patient@example.com" value={regForm.email}
+                          onChange={(e) => setF('email', e.target.value)} style={iStyle} />
+                      </div>
+                    </div>
+
+                    {/* Address */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={lStyle}>Street / House Address</label>
+                        <input type="text" placeholder="House No., Street, Area" value={regForm.address}
+                          onChange={(e) => setF('address', e.target.value)} style={iStyle} />
+                      </div>
+                      <div>
+                        <label style={lStyle}>City</label>
+                        <input type="text" value={regForm.city} onChange={(e) => setF('city', e.target.value)}
+                          placeholder="New Delhi" style={iStyle} />
+                      </div>
+                      <div>
+                        <label style={lStyle}>PIN Code</label>
+                        <input type="text" maxLength={6} value={regForm.pincode} onChange={(e) => setF('pincode', e.target.value)}
+                          placeholder="110001" style={iStyle} />
+                      </div>
+                    </div>
+
+                    {/* ABHA */}
+                    <div>
+                      <label style={lStyle}>ABHA / National Health ID (Optional)</label>
+                      <input type="text" placeholder="e.g. ramesh@abdm or 91-XXXX-XXXX-XXXX" value={regForm.abha_id}
+                        onChange={(e) => handlePhoneOrAbhaChange('abha_id', e.target.value)} style={iStyle} />
+                    </div>
+
+                    {/* Emergency contact */}
+                    <div style={{ background: '#fef2f2', padding: '14px', borderRadius: '10px', border: '1px solid #fecaca' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#b91c1c', marginBottom: '10px' }}>🆘 Emergency Contact</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                        <div>
+                          <label style={lStyle}>Contact Name</label>
+                          <input type="text" placeholder="Full name" value={regForm.emergency_name}
+                            onChange={(e) => setF('emergency_name', e.target.value)} style={iStyle} />
+                        </div>
+                        <div>
+                          <label style={lStyle}>Relationship</label>
+                          <select value={regForm.emergency_relation} onChange={(e) => setF('emergency_relation', e.target.value)} style={iStyle}>
+                            {['Spouse','Parent','Sibling','Child','Friend','Guardian','Other'].map(r => <option key={r}>{r}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={lStyle}>Emergency Phone</label>
+                          <input type="tel" placeholder="+91 98765 00000" value={regForm.emergency_phone}
+                            onChange={(e) => setF('emergency_phone', e.target.value)} style={iStyle} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── STEP 2: MEDICAL & CLINICAL ── */}
+                {regStep === 2 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+                    {/* Allergies + conditions */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={lStyle}>Known Drug / Food Allergies</label>
+                        <input type="text" placeholder="e.g. Penicillin, Sulfa, None" value={regForm.allergies}
+                          onChange={(e) => setF('allergies', e.target.value)} style={iStyle} />
+                      </div>
+                      <div>
+                        <label style={lStyle}>Existing Medical Conditions</label>
+                        <input type="text" placeholder="e.g. Diabetes, HTN, None" value={regForm.conditions}
+                          onChange={(e) => setF('conditions', e.target.value)} style={iStyle} />
+                      </div>
+                    </div>
+
+                    {/* Current medications */}
+                    <div>
+                      <label style={lStyle}>Current Medications</label>
+                      <input type="text" placeholder="e.g. Metformin 500mg, Amlodipine 5mg, None" value={regForm.medications}
+                        onChange={(e) => setF('medications', e.target.value)} style={iStyle} />
+                    </div>
+
+                    {/* Department + Doctor */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={lStyle}>Clinical Department <span style={{ color: '#ef4444' }}>*</span></label>
+                        <select value={regForm.department} onChange={(e) => setF('department', e.target.value)} style={iStyle}>
+                          <option>Cardiology</option>
+                          <option>Neurology</option>
+                          <option>General Medicine</option>
+                          <option>Orthopedics</option>
+                          <option>Pediatrics</option>
+                          <option>Dermatology</option>
+                          <option>Ophthalmology</option>
+                          <option>AYUSH</option>
+                          <option>Emergency</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={lStyle}>Attending Physician <span style={{ color: '#ef4444' }}>*</span></label>
+                        <select value={regForm.doctor} onChange={(e) => setF('doctor', e.target.value)} style={iStyle}>
+                          <option>Dr. Sarah Jenkins (Cardiology)</option>
+                          <option>Dr. Arun Kumar (Neurology)</option>
+                          <option>Dr. Priya Sharma (General Medicine)</option>
+                          <option>Dr. Rajesh Menon (Orthopedics)</option>
+                          <option>Dr. Priya Sundaram (Pediatrics)</option>
+                          <option>Dr. Vikram Malhotra (Emergency)</option>
+                          <option>Dr. Harshavardhan Rao (AYUSH)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Visit type + priority */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={lStyle}>Visit Type</label>
+                        <select value={regForm.visit_type} onChange={(e) => setF('visit_type', e.target.value)} style={iStyle}>
+                          <option>OPD Walk-In</option>
+                          <option>Scheduled Appointment</option>
+                          <option>Emergency Visit</option>
+                          <option>Follow-Up</option>
+                          <option>AYUSH Consultation</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={lStyle}>Triage Priority</label>
+                        <select value={regForm.priority} onChange={(e) => setF('priority', e.target.value)} style={iStyle}>
+                          <option value="Routine">Routine</option>
+                          <option value="Urgent">Urgent</option>
+                          <option value="Immediate">Immediate / Emergency</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Chief complaint */}
+                    <div>
+                      <label style={lStyle}>Chief Complaint / Reason for Visit</label>
+                      <textarea rows={3} placeholder="Describe the patient's main complaint in brief…"
+                        value={regForm.chief_complaint} onChange={(e) => setF('chief_complaint', e.target.value)}
+                        style={{ ...iStyle, resize: 'vertical' }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* ── STEP 3: REVIEW ── */}
+                {regStep === 3 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '18px' }}>
+                      <h4 style={{ margin: '0 0 14px', fontSize: '14px', fontWeight: 800, color: '#0f172a' }}>📋 Registration Review</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px', fontSize: '13px', color: '#334155' }}>
+                        <div>Name: <strong>{regForm.name}</strong></div>
+                        <div>Age / Gender: <strong>{regForm.age} yrs / {regForm.gender}</strong></div>
+                        <div>DOB: <strong>{regForm.dob || '—'}</strong></div>
+                        <div>Blood Group: <strong>{regForm.blood_group}</strong></div>
+                        <div>Phone: <strong>{regForm.phone}</strong></div>
+                        <div>Email: <strong>{regForm.email || '—'}</strong></div>
+                        <div>ABHA: <strong>{regForm.abha_id || '—'}</strong></div>
+                        <div>Allergies: <strong>{regForm.allergies}</strong></div>
+                        <div>Conditions: <strong>{regForm.conditions}</strong></div>
+                        <div>Medications: <strong>{regForm.medications}</strong></div>
+                        <div>Department: <strong>{regForm.department}</strong></div>
+                        <div>Doctor: <strong>{regForm.doctor}</strong></div>
+                        <div>Visit Type: <strong>{regForm.visit_type}</strong></div>
+                        <div>Priority: <strong style={{ color: regForm.priority === 'Immediate' ? '#ef4444' : regForm.priority === 'Urgent' ? '#f59e0b' : '#10b981' }}>{regForm.priority}</strong></div>
+                        {regForm.chief_complaint && <div style={{ gridColumn: 'span 2' }}>Chief Complaint: <strong>{regForm.chief_complaint}</strong></div>}
+                        {regForm.emergency_name && <div style={{ gridColumn: 'span 2' }}>Emergency Contact: <strong>{regForm.emergency_name} ({regForm.emergency_relation}) — {regForm.emergency_phone}</strong></div>}
+                      </div>
+                    </div>
+                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '12px 16px', fontSize: '13px', color: '#1e40af' }}>
+                      ℹ️ Submitting will assign a permanent <strong>UHID</strong>, create an OPD queue token, and add the patient to today's appointment list.
+                    </div>
+                  </div>
+                )}
+
+                {/* Navigation */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+                  {regStep > 1 ? (
+                    <button type="button" onClick={() => setRegStep(regStep - 1)} className="btn-secondary">← Previous</button>
+                  ) : <div />}
+
+                  {regStep < 3 ? (
+                    <button type="button" className="btn-primary"
+                      onClick={() => {
+                        if (regStep === 1 && !regForm.name.trim()) return alert('Patient name is required.');
+                        if (regStep === 1 && !regForm.phone.trim()) return alert('Phone number is required.');
+                        if (regStep === 1 && !regForm.dob) return alert('Date of birth is required.');
+                        setRegStep(regStep + 1);
+                      }}
+                      style={{ padding: '10px 24px', fontWeight: 800 }}>
+                      Next Step →
+                    </button>
+                  ) : (
+                    <button type="submit" className="btn-primary" style={{ padding: '10px 24px', fontWeight: 800, fontSize: '14px' }}>
+                      ✓ Register & Generate UHID + Token
+                    </button>
+                  )}
+                </div>
+
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 3. PATIENT SEARCH & OVERVIEW */}
       {activeTab === 'search' && (

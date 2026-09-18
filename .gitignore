@@ -16,6 +16,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+output/
 *.egg
 .eggs/
 *.log
@@ -35,8 +36,9 @@ credentials.json
 
 # --- Large Model Weights & Datasets (too large for GitHub) ---
 backend/models/qwen-triage-adapter/
-backend/models/
-models/
+/backend/models/
+/models/
+!backend/app/models/
 *.rar
 *.zip
 *.tar.gz

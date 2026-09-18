@@ -3,7 +3,7 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, Any, List, Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Body
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Body, Response, Query
 from pydantic import BaseModel
 
 from app.database import get_db_connection
@@ -507,6 +507,210 @@ def generate_clinical_summary(session_id: str):
     }
 
 # ---------------------------------------------------------------------------
+# 5b. ABDM FHIR R4 QuestionnaireResponse Export Endpoint
+# ---------------------------------------------------------------------------
+
+@router.get("/session/{session_id}/fhir")
+def export_intake_fhir_resource(session_id: str, download: bool = False):
+    """
+    Generates an official HL7 FHIR R4 QuestionnaireResponse resource
+    compliant with Ayushman Bharat Digital Mission (ABDM / NRCES) standards.
+    Includes both Allopathic clinical items and AYUSH Dashavidha Pariksha.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT s.*, p.name as patient_name, p.age as patient_age, p.gender as patient_gender,
+           p.uhid, p.abha_id, p.phone, p.blood_group, p.allergies as known_allergies
+    FROM intake_sessions s
+    JOIN patients p ON s.patient_id = p.patient_id
+    WHERE s.session_id = ?
+    """, (session_id,))
+    session = cursor.fetchone()
+    if not session:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Intake session not found.")
+        
+    cursor.execute("SELECT * FROM patient_documents WHERE patient_id = ? ORDER BY timeline_year ASC", (session["patient_id"],))
+    docs = [dict(d) for d in cursor.fetchall()]
+    conn.close()
+
+    hpi_dict = json.loads(session["hpi_data"]) if session["hpi_data"] else {}
+    red_flags = json.loads(session["red_flags"]) if session["red_flags"] else []
+    ros_dict = json.loads(session["ros_data"]) if session["ros_data"] else {}
+    ayush_dict = json.loads(session["ayush_data"]) if session["ayush_data"] else {}
+
+    # Build FHIR Items hierarchy
+    fhir_items = [
+        {
+            "linkId": "1.0",
+            "text": "Chief Presenting Complaint",
+            "answer": [{"valueString": session["chief_complaint"] or "General OPD Consultation"}]
+        }
+    ]
+
+    # HPI Item Group
+    if hpi_dict:
+        hpi_items = []
+        for idx, (k, val) in enumerate(hpi_dict.items(), start=1):
+            hpi_items.append({
+                "linkId": f"2.{idx}",
+                "text": k.replace("_", " ").title(),
+                "answer": [{"valueString": str(val)}]
+            })
+        fhir_items.append({
+            "linkId": "2.0",
+            "text": "History of Present Illness (HPI - SOCRATES Framework)",
+            "item": hpi_items
+        })
+
+    # Medical & Surgical History
+    fhir_items.append({
+        "linkId": "3.0",
+        "text": "Past Medical and Surgical History",
+        "item": [
+            {"linkId": "3.1", "text": "Past Medical Conditions", "answer": [{"valueString": session["past_medical"] or "None reported"}]},
+            {"linkId": "3.2", "text": "Past Surgical Procedures", "answer": [{"valueString": session["past_surgical"] or "None reported"}]}
+        ]
+    })
+
+    # Medication & Allergies
+    fhir_items.append({
+        "linkId": "4.0",
+        "text": "Pharmacological & Allergy History",
+        "item": [
+            {"linkId": "4.1", "text": "Active Medications", "answer": [{"valueString": session["drug_history"] or "None active"}]},
+            {"linkId": "4.2", "text": "Known Drug / Food Allergies", "answer": [{"valueString": session["allergies"] or session["known_allergies"] or "None known"}]}
+        ]
+    })
+
+    # AYUSH Dashavidha Pariksha Group (AIIA / Ministry of Ayush Standard)
+    if session["consultation_category"] == "AYUSH" or ayush_dict:
+        ayush_items = []
+        ayush_labels = {
+            "prakriti_temperament": "Prakriti (Constitutional Temperament & Thermal Tolerance)",
+            "agni_digestive_power": "Agni (Digestive Fire & Metabolic Appetite)",
+            "koshtha_bowel_nature": "Koshtha (Bowel Nature & Evacuation Pattern)",
+            "ahara_vihara_lifestyle": "Ahara-Vihara (Diet Habits, Sleep / Nidra & Daily Routine)",
+            "bala_vyayama_shakti": "Bala & Vyayama Shakti (Physical Stamina & Exercise Capacity)",
+            "sara_tissue_purity": "Sara (Tissue Excellence / Dhatu Health)",
+            "samhanana_compactness": "Samhanana (Body Compactness & Build)",
+            "pramana_measurements": "Pramana (Anthropometric Proportions)",
+            "satmya_habituation": "Satmya (Adaptability to Diet & Climate)",
+            "sattva_mental_strength": "Sattva (Mental Endurance & Emotional Resilience)"
+        }
+        idx = 1
+        for k, v in ayush_dict.items():
+            ayush_items.append({
+                "linkId": f"5.{idx}",
+                "text": ayush_labels.get(k, k.replace("_", " ").title()),
+                "answer": [{"valueString": str(v)}]
+            })
+            idx += 1
+
+        if not ayush_items:
+            ayush_items.append({
+                "linkId": "5.1",
+                "text": "Dashavidha Pariksha Status",
+                "answer": [{"valueString": "Patient indicated Ayurvedic holistic consultation"}]
+            })
+
+        fhir_items.append({
+            "linkId": "5.0",
+            "text": "AYUSH Dashavidha Pariksha (Ministry of Ayush / AIIA Framework)",
+            "item": ayush_items
+        })
+
+    # Red Flag Risk Assessment
+    fhir_items.append({
+        "linkId": "6.0",
+        "text": "Emergency Triage Risk Evaluation",
+        "item": [
+            {"linkId": "6.1", "text": "Emergency Bypass Flag", "answer": [{"valueBoolean": bool(session["is_emergency"])}]},
+            {"linkId": "6.2", "text": "Red Flags Detected", "answer": [{"valueString": json.dumps(red_flags) if red_flags else "None detected - Standard OPD"}]}
+        ]
+    })
+
+    # Digitized Prior Records / Evidence
+    if docs:
+        doc_items = []
+        for idx, doc in enumerate(docs, start=1):
+            ext = json.loads(doc["extracted_data_json"]) if doc.get("extracted_data_json") else {}
+            doc_items.append({
+                "linkId": f"7.{idx}",
+                "text": f"Year {doc['timeline_year']} - {doc['document_type']} ({doc['filename']})",
+                "answer": [{"valueString": ext.get("clinical_impression") or "Digitized record verified"}]
+            })
+        fhir_items.append({
+            "linkId": "7.0",
+            "text": "Digitized Medical Records & Timeline",
+            "item": doc_items
+        })
+
+    # Build Standard FHIR QuestionnaireResponse Resource
+    now_iso = datetime.now().isoformat()
+    fhir_resource = {
+        "resourceType": "QuestionnaireResponse",
+        "id": f"ABDM-QR-{session_id}",
+        "meta": {
+            "versionId": "1",
+            "lastUpdated": now_iso,
+            "profile": [
+                "https://nrces.in/ndhm/fhir/r4/StructureDefinition/QuestionnaireResponse"
+            ]
+        },
+        "identifier": {
+            "system": "https://abdm.gov.in/fhir/questionnaireresponse",
+            "value": f"QR-{session_id}"
+        },
+        "questionnaire": "https://nrces.in/ndhm/fhir/r4/Questionnaire/clinical-intake-kiosk",
+        "status": "completed",
+        "subject": {
+            "reference": f"Patient/{session['patient_id']}",
+            "type": "Patient",
+            "display": session["patient_name"],
+            "identifier": {
+                "system": "https://healthid.ndhm.gov.in",
+                "value": session["abha_id"] or f"91-2026-{session['patient_id']}"
+            }
+        },
+        "encounter": {
+            "reference": f"Encounter/{session['visit_id'] or 'VST-PENDING'}",
+            "display": f"OPD Consultation - {session['consultation_category']}"
+        },
+        "authored": session["created_at"] or now_iso,
+        "author": {
+            "display": "AuraHealth MediKiosk Digital Intake System (DPDP Act 2023 Compliant)",
+            "type": "Device"
+        },
+        "source": {
+            "reference": f"Patient/{session['patient_id']}",
+            "display": session["patient_name"]
+        },
+        "item": fhir_items,
+        "extension": [
+            {
+                "url": "https://nrces.in/ndhm/fhir/r4/StructureDefinition/AyushParikshaCategory",
+                "valueString": session["consultation_category"]
+            },
+            {
+                "url": "https://nrces.in/ndhm/fhir/r4/StructureDefinition/ConsentRecord",
+                "valueBoolean": True
+            }
+        ]
+    }
+
+    if download:
+        content = json.dumps(fhir_resource, indent=2)
+        return Response(
+            content=content,
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="ABDM_FHIR_Intake_{session_id}.json"'}
+        )
+
+    return fhir_resource
+
+# ---------------------------------------------------------------------------
 # 6. Final Intake Completion & OPD Queue Enqueueing
 # ---------------------------------------------------------------------------
 
@@ -576,4 +780,248 @@ def complete_intake_and_enqueue(
         "priority": priority,
         "is_emergency": is_emergency,
         "estimated_wait_minutes": 0 if is_emergency else 12
+    }
+
+
+# ---------------------------------------------------------------------------
+# 7. Full Patient Registration — used by Receptionist Portal
+#    Accepts a richer payload than the minimal MediKiosk register endpoint.
+# ---------------------------------------------------------------------------
+
+class FullPatientRegisterRequest(BaseModel):
+    name: str
+    dob: Optional[str] = None
+    age: Optional[int] = None
+    gender: str
+    phone: str
+    email: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    pincode: Optional[str] = None
+    blood_group: Optional[str] = "O+"
+    allergies: Optional[str] = "None known"
+    conditions: Optional[str] = "None"
+    medications: Optional[str] = "None"
+    abha_id: Optional[str] = None
+    emergency_name: Optional[str] = None
+    emergency_relation: Optional[str] = None
+    emergency_phone: Optional[str] = None
+    department: Optional[str] = "General Medicine"
+    doctor: Optional[str] = None
+    visit_type: Optional[str] = "OPD Walk-In"
+    priority: Optional[str] = "Routine"
+    chief_complaint: Optional[str] = None
+    registered_by: Optional[str] = "Receptionist"
+
+
+@router.post("/patient/register/full")
+def register_patient_full(req: FullPatientRegisterRequest):
+    """
+    Full patient registration endpoint for the Receptionist Portal.
+    Creates the patient master record, a same-day visit, and an OPD queue ticket.
+    Returns UHID, patient_id, visit_id, and queue ticket number.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # ── Duplicate check ──
+    cursor.execute(
+        "SELECT patient_id, uhid FROM patients WHERE phone = ? AND name = ?",
+        (req.phone.strip(), req.name.strip())
+    )
+    existing = cursor.fetchone()
+    if existing:
+        conn.close()
+        return {
+            "message": "Existing patient found with same name and phone.",
+            "patient_id": existing["patient_id"],
+            "uhid":       existing["uhid"],
+            "is_new":     False,
+        }
+
+    # ── Generate IDs ──
+    import uuid as _uuid
+    num        = str(_uuid.uuid4().int)[:6]
+    patient_id = f"PT-{num}"
+    uhid       = f"UHID-2026-{num}"
+    visit_id   = f"VST-{_uuid.uuid4().hex[:6].upper()}"
+    ticket_num = f"OPD-{_uuid.uuid4().int % 9000 + 1000}"
+    now_str    = datetime.now().isoformat()
+
+    # ── Build address string ──
+    address_parts = filter(None, [req.address, req.city, req.state, req.pincode])
+    full_address  = ", ".join(address_parts) or "India"
+
+    # ── Emergency contact string ──
+    ec_parts = filter(None, [req.emergency_name,
+                              f"({req.emergency_relation})" if req.emergency_relation else None,
+                              req.emergency_phone])
+    emergency_contact = " ".join(ec_parts) or None
+
+    # ── Compute age from DOB if not provided ──
+    age = req.age
+    if not age and req.dob:
+        from datetime import date
+        try:
+            b = date.fromisoformat(req.dob)
+            t = date.today()
+            age = t.year - b.year - ((t.month, t.day) < (b.month, b.day))
+        except Exception:
+            age = 30
+    age = age or 30
+
+    # ── Insert patient ──
+    cursor.execute("""
+    INSERT INTO patients
+        (patient_id, uhid, abha_id, name, age, gender, dob, phone, address,
+         emergency_contact, blood_group, allergies, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        patient_id, uhid,
+        req.abha_id or f"91-{num[:4]}-4920-{num[2:]}",
+        req.name.strip(), age, req.gender,
+        req.dob or "1990-01-01",
+        req.phone.strip(),
+        full_address,
+        emergency_contact or "Not provided",
+        req.blood_group or "O+",
+        req.allergies   or "None known",
+        now_str,
+    ))
+
+    # ── Create same-day visit ──
+    assigned_doctor = req.doctor or "Dr. Priya Sharma"
+    department      = req.department or "General Medicine"
+    is_emergency    = (req.priority == "Immediate")
+    priority_label  = req.priority or "Routine"
+
+    cursor.execute("""
+    INSERT INTO visits
+        (visit_id, patient_id, visit_date, visit_type, department, doctor_name,
+         queue_ticket, triage_priority, status, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Waiting', ?)
+    """, (
+        visit_id, patient_id, now_str,
+        "Emergency" if is_emergency else "OPD",
+        department, assigned_doctor,
+        ticket_num, priority_label, now_str,
+    ))
+
+    # ── Add to OPD queue ──
+    cursor.execute("""
+    INSERT INTO opd_queue
+        (ticket_number, visit_id, patient_id, patient_name, patient_age,
+         patient_gender, symptoms, department, priority, status, check_in_time)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Waiting', ?)
+    """, (
+        ticket_num, visit_id, patient_id,
+        req.name.strip(), age, req.gender,
+        req.chief_complaint or "OPD Consultation",
+        department, priority_label, now_str,
+    ))
+
+    # ── Audit log ──
+    log_id = f"LOG-{_uuid.uuid4().hex[:6].upper()}"
+    cursor.execute("""
+    INSERT INTO audit_logs
+        (log_id, user_name, role, action, entity, entity_id, details, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        log_id,
+        req.registered_by or "Receptionist",
+        "receptionist",
+        "REGISTER",
+        "PATIENT",
+        patient_id,
+        f"Full registration: {req.name.strip()} ({uhid}) — {department} — Token {ticket_num}",
+        now_str,
+    ))
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "message":         "Patient registered successfully",
+        "patient_id":      patient_id,
+        "uhid":            uhid,
+        "visit_id":        visit_id,
+        "ticket_number":   ticket_num,
+        "department":      department,
+        "assigned_doctor": assigned_doctor,
+        "priority":        priority_label,
+        "is_new":          True,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 8. GET /patients — list all registered patients (for receptionist search)
+# ---------------------------------------------------------------------------
+
+@router.get("/patients")
+def list_all_patients(search: Optional[str] = None, limit: int = 50):
+    """Returns the master patient list, optionally filtered by name/phone/UHID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if search:
+        q = f"%{search.strip()}%"
+        cursor.execute("""
+        SELECT * FROM patients
+        WHERE name LIKE ? OR phone LIKE ? OR uhid LIKE ? OR abha_id LIKE ?
+        ORDER BY created_at DESC
+        LIMIT ?
+        """, (q, q, q, q, limit))
+    else:
+        cursor.execute("SELECT * FROM patients ORDER BY created_at DESC LIMIT ?", (limit,))
+
+    rows = [dict(r) for r in cursor.fetchall()]
+    conn.close()
+    return {"count": len(rows), "patients": rows}
+
+
+# ---------------------------------------------------------------------------
+# 9. GET /patient/{patient_id}/summary — full clinical summary for a patient
+# ---------------------------------------------------------------------------
+
+@router.get("/patient/{patient_id}/summary")
+def get_patient_summary(patient_id: str):
+    """Returns a consolidated clinical summary for a patient (visits, Rx, bills, followups)."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM patients WHERE patient_id = ?", (patient_id,))
+    patient = cursor.fetchone()
+    if not patient:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Patient not found.")
+
+    cursor.execute("SELECT * FROM visits       WHERE patient_id = ? ORDER BY created_at DESC LIMIT 10", (patient_id,))
+    visits = [dict(r) for r in cursor.fetchall()]
+
+    cursor.execute("SELECT * FROM prescriptions WHERE patient_id = ? ORDER BY created_at DESC LIMIT 10", (patient_id,))
+    prescriptions = [dict(r) for r in cursor.fetchall()]
+
+    cursor.execute("SELECT * FROM investigations WHERE patient_id = ? ORDER BY created_at DESC LIMIT 15", (patient_id,))
+    investigations = [dict(r) for r in cursor.fetchall()]
+
+    cursor.execute("SELECT * FROM bills         WHERE patient_id = ? ORDER BY created_at DESC LIMIT 10", (patient_id,))
+    bills = [dict(r) for r in cursor.fetchall()]
+
+    cursor.execute("SELECT * FROM followups     WHERE patient_id = ? ORDER BY followup_date ASC LIMIT 5", (patient_id,))
+    followups = [dict(r) for r in cursor.fetchall()]
+
+    cursor.execute("SELECT * FROM admissions    WHERE patient_id = ? ORDER BY admitted_at DESC LIMIT 5", (patient_id,))
+    admissions = [dict(r) for r in cursor.fetchall()]
+
+    conn.close()
+
+    return {
+        "patient":        dict(patient),
+        "visits":         visits,
+        "prescriptions":  prescriptions,
+        "investigations": investigations,
+        "bills":          bills,
+        "followups":      followups,
+        "admissions":     admissions,
     }

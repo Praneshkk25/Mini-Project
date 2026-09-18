@@ -81,7 +81,8 @@ export default function AIChatCompanionView({ patient }) {
         body: JSON.stringify({
           query: userMsg,
           patient_id: patient?.patient_id || 'PT-1001',
-          role: 'patient'
+          role: 'patient',
+          history: newMessages.slice(-6).map((m) => ({ role: m.role, content: m.content })),
         })
       });
 

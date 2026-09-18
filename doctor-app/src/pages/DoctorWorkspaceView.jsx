@@ -346,9 +346,25 @@ export default function DoctorWorkspaceView({ user, initialSubTab = 'summary' })
                     </span>
                   </div>
 
-                  <button onClick={handleConfirmSummary} className="btn-primary" style={{ padding: '8px 16px', fontSize: '13px' }}>
-                    ✓ Accept & Confirm Summary
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => {
+                        const sid = patientChart.active_intake_session?.session_id;
+                        if (sid) {
+                          window.open(`${API_BASE}/intake/session/${sid}/fhir?download=true`, '_blank');
+                        } else {
+                          alert('No active intake session available to export FHIR JSON.');
+                        }
+                      }}
+                      className="btn-secondary"
+                      style={{ padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      📋 Export ABDM FHIR JSON
+                    </button>
+                    <button onClick={handleConfirmSummary} className="btn-primary" style={{ padding: '8px 16px', fontSize: '13px' }}>
+                      ✓ Accept & Confirm Summary
+                    </button>
+                  </div>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -391,6 +407,47 @@ export default function DoctorWorkspaceView({ user, initialSubTab = 'summary' })
                       style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '4px' }}
                     />
                   </div>
+
+                  {/* ── AYUSH Dashavidha Pariksha Clinical Panel (AIIA / Ministry of Ayush Standard) ── */}
+                  {(patientChart.active_intake_session?.consultation_category === 'AYUSH' ||
+                    patientChart.active_intake_session?.ai_summary_draft?.ayush_dashavidha_pariksha) && (
+                    <div style={{
+                      gridColumn: 'span 2', marginTop: '8px',
+                      background: 'linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%)',
+                      border: '1px solid #86efac', borderRadius: '12px', padding: '16px'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '20px' }}>🌿</span>
+                          <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: '#166534' }}>
+                            AYUSH Dashavidha Pariksha Assessment (AIIA Standard)
+                          </h4>
+                        </div>
+                        <span style={{ fontSize: '11px', background: '#166534', color: '#fff', padding: '3px 10px', borderRadius: '12px', fontWeight: 700 }}>
+                          Ayurvedic Clinical Intake
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                        {patientChart.active_intake_session?.ai_summary_draft?.ayush_dashavidha_pariksha ? (
+                          Object.entries(patientChart.active_intake_session.ai_summary_draft.ayush_dashavidha_pariksha).map(([key, val]) => (
+                            <div key={key} style={{ background: '#fff', padding: '10px 14px', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                                {key.replace(/_/g, ' ')}
+                              </span>
+                              <span style={{ fontSize: '13px', color: '#1e293b', fontWeight: 600 }}>
+                                {String(val)}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ fontSize: '13px', color: '#15803d', fontStyle: 'italic' }}>
+                            Ayurvedic intake recorded. Dashavidha Pariksha parameters saved with consultation chart.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

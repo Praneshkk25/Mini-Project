@@ -8,7 +8,11 @@ from pydantic import BaseModel
 from app.services import llm_service, tts_service
 from app import config
 from app.database import init_db
-from app.routes import queues, beds, inventory, city_wide, auth, appointments, heart_predictor, billing, monitoring, intake, consultations, audit, ambulance, ai
+from app.routes import (
+    queues, beds, inventory, city_wide, auth, appointments, heart_predictor,
+    billing, monitoring, intake, consultations, audit, ambulance, ai,
+    prescriptions, documents, followups, notifications
+)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -38,8 +42,12 @@ app.include_router(intake.router)
 app.include_router(ai.router)
 app.include_router(consultations.router)
 app.include_router(appointments.router)
-app.include_router(heart_predictor.router)
+app.include_router(prescriptions.router)
+app.include_router(documents.router)
+app.include_router(followups.router)
 app.include_router(billing.router)
+app.include_router(notifications.router)
+app.include_router(heart_predictor.router)
 app.include_router(queues.router)
 app.include_router(beds.router)
 app.include_router(inventory.router)

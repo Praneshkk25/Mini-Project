@@ -12,7 +12,9 @@ export default function HeartPredictorView() {
     thalach: 135,
     exang: 1,
     oldpeak: 2.1,
-    slope: 1
+    slope: 1,
+    ca: 0,
+    thal: 2
   });
 
   const [ecgImage, setEcgImage] = useState(null);
@@ -50,7 +52,9 @@ export default function HeartPredictorView() {
       thalach: preset.thalach,
       exang: preset.exang,
       oldpeak: preset.oldpeak,
-      slope: preset.slope
+      slope: preset.slope,
+      ca: preset.ca ?? 0,
+      thal: preset.thal ?? 2
     });
   };
 
@@ -214,6 +218,33 @@ export default function HeartPredictorView() {
                   style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
                 />
               </div>
+
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Major Vessels (ca: 0-3)</label>
+                <select
+                  value={formData.ca}
+                  onChange={(e) => setFormData({ ...formData, ca: parseInt(e.target.value) || 0 })}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                >
+                  <option value={0}>0 Major Vessels Colored</option>
+                  <option value={1}>1 Vessel Colored</option>
+                  <option value={2}>2 Vessels Colored</option>
+                  <option value={3}>3 Vessels Colored</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Thalassemia (thal)</label>
+                <select
+                  value={formData.thal}
+                  onChange={(e) => setFormData({ ...formData, thal: parseInt(e.target.value) || 2 })}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}
+                >
+                  <option value={1}>1: Normal Blood Flow</option>
+                  <option value={2}>2: Fixed Defect</option>
+                  <option value={3}>3: Reversible Defect</option>
+                </select>
+              </div>
             </div>
 
             {/* ECG Image Uploader */}
@@ -266,6 +297,19 @@ export default function HeartPredictorView() {
                 }`} style={{ fontSize: '0.9rem', padding: '0.35rem 1rem' }}>
                   {result.risk_category}
                 </span>
+
+                {result.tabular_xgb_risk !== undefined && (
+                  <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '0.75rem', flexWrap: 'wrap', fontSize: '0.75rem' }}>
+                    <span style={{ background: '#ffffffcc', padding: '3px 8px', borderRadius: '5px', border: '1px solid #cbd5e1', fontWeight: 600 }}>
+                      📊 Tabular XGBoost: {(result.tabular_xgb_risk * 100).toFixed(1)}%
+                    </span>
+                    {result.ecg_xgb_risk !== null && result.ecg_xgb_risk !== undefined && (
+                      <span style={{ background: '#ffffffcc', padding: '3px 8px', borderRadius: '5px', border: '1px solid #cbd5e1', fontWeight: 600, color: '#0f766e' }}>
+                        📸 ECG Vision AI: {(result.ecg_xgb_risk * 100).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Extracted ECG Metrics */}

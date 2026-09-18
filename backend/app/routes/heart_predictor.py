@@ -17,10 +17,15 @@ async def predict_heart_disease(
     exang: int = Form(1),
     oldpeak: float = Form(1.8),
     slope: int = Form(1),
+    ca: int = Form(0),
+    thal: int = Form(2),
     ecg_image: Optional[UploadFile] = File(None)
 ):
     """
-    Runs multi-modal XGBoost Heart Disease risk prediction using tabular clinical features + optional ECG image upload.
+    Runs multi-modal XGBoost Heart Disease risk prediction using:
+    1. 13 Tabular Clinical Features (XGBoost Classifier)
+    2. Optional 12-Lead ECG Waveform Image Upload (100-Tree XGBoost Vision Model)
+    3. Multi-Modal Decision Fusion
     """
     try:
         image_bytes = None
@@ -39,6 +44,8 @@ async def predict_heart_disease(
             exang=exang,
             oldpeak=oldpeak,
             slope=slope,
+            ca=ca,
+            thal=thal,
             ecg_image_bytes=image_bytes
         )
         return result
@@ -62,6 +69,8 @@ def get_preset_cases():
             "exang": 0,
             "oldpeak": 0.0,
             "slope": 0,
+            "ca": 0,
+            "thal": 2,
             "description": "38 yo Female with normal blood pressure, optimal cholesterol, and good exercise tolerance."
         },
         {
@@ -78,6 +87,8 @@ def get_preset_cases():
             "exang": 1,
             "oldpeak": 2.4,
             "slope": 2,
+            "ca": 2,
+            "thal": 3,
             "description": "62 yo Male presenting with exercise angina, elevated ST depression (2.4mm), and high blood pressure."
         },
         {
@@ -94,6 +105,8 @@ def get_preset_cases():
             "exang": 0,
             "oldpeak": 1.1,
             "slope": 1,
+            "ca": 1,
+            "thal": 2,
             "description": "54 yo Male with left ventricular hypertrophy, mild ST shift, and non-anginal chest pain."
         }
     ]

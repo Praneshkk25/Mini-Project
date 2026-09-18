@@ -3,7 +3,7 @@ import { Stethoscope, X, Mic, Send, MessageSquare } from 'lucide-react';
 
 const BACKEND_URL = "http://127.0.0.1:8000";
 
-export default function FloatingCareCompanion({ patient }) {
+export default function FloatingCareCompanion({ patient, activeTab }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     {
@@ -14,6 +14,25 @@ export default function FloatingCareCompanion({ patient }) {
   const [queryText, setQueryText] = useState('');
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
+  const getSuggestionChips = () => {
+    if (activeTab === 'prescriptions') {
+      return ['When should I take Pantocid?', 'Any medicine interactions?', 'Missed my morning dose'];
+    }
+    if (activeTab === 'appointments') {
+      return ['Which hospital is Dr. Sarah at?', 'What is the consultation fee?', 'How to reschedule?'];
+    }
+    if (activeTab === 'documents') {
+      return ['Explain my ECG findings', 'Summarize my discharge advice', 'Diet restrictions'];
+    }
+    if (activeTab === 'token') {
+      return ['What is my queue status?', 'How many patients ahead?', 'Where is the consultation room?'];
+    }
+    if (activeTab === 'billing') {
+      return ['Explain my invoice charges', 'How to pay with UPI QR?', 'Is insurance supported?'];
+    }
+    return ['When is my next appointment?', 'What medicines am I taking?', 'Explain my care plan'];
+  };
 
   const messagesEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -92,15 +111,16 @@ export default function FloatingCareCompanion({ patient }) {
     setLoading(true);
 
     try {
-      // First try MedGemma AI endpoint
+      // First try grounded MedGemma AI endpoint with patient continuity
       const res = await fetch(`${BACKEND_URL}/api/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: userMsg,
           patient_id: patient?.patient_id || 'PT-1001',
-          role: 'patient'
-        })
+          role: 'patient',
+          history: newMessages.slice(-6).map((m) => ({ role: m.role, content: m.content })),
+        }),
       });
 
       if (res.ok) {
@@ -286,11 +306,7 @@ export default function FloatingCareCompanion({ patient }) {
               scrollbarWidth: 'none'
             }}
           >
-            {[
-              'Can I eat rice?',
-              'Fever comes back?',
-              'Why probiotics?'
-            ].map((chip, idx) => (
+            {getSuggestionChips().map((chip, idx) => (
               <button
                 key={idx}
                 onClick={() => submitChatQuery(chip)}

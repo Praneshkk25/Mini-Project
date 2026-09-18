@@ -139,6 +139,11 @@ class TestCareEaseAPI(unittest.TestCase):
     def test_inventory_full_flow(self):
         """Test Inventory list, add item, dispense medicine, dispensations log, and item deletion."""
         med_name = "TestMed 100mg"
+        from app.database import get_db_connection
+        conn = get_db_connection()
+        conn.cursor().execute("DELETE FROM inventory WHERE LOWER(medicine_name) = 'testmed 100mg'")
+        conn.commit()
+        conn.close()
 
         # 1. Add/Replenish item
         add_res = self.client.post("/api/inventory/add", json={

@@ -51,11 +51,13 @@ PORT = int(os.getenv("PORT", "8000"))
 HOST = os.getenv("HOST", "127.0.0.1")
 
 # Provider logging
-if LLM_PROVIDER in ["medgemma", "ollama"]:
+if LLM_PROVIDER == "qwen-local-ft":
+    print(f"[AI DUAL-STACK] Discharge & Triage Engine: Local Fine-Tuned Qwen LoRA ({LOCAL_FT_BASE_MODEL} + models/qwen-triage-adapter)")
+    print(f"[AI DUAL-STACK] Clinical Q&A & Doctor Summaries: MedGemma via Ollama ({OLLAMA_API_BASE}, model: {MEDGEMMA_MODEL_NAME})")
+elif LLM_PROVIDER in ["medgemma", "ollama"]:
     print(f"[INFO] Using MedGemma clinical model with endpoint: {OLLAMA_API_BASE} and model: {MEDGEMMA_MODEL_NAME}")
 elif LLM_PROVIDER == "gemini" and not GEMINI_API_KEY:
     print("Warning: LLM_PROVIDER is set to 'gemini' but GEMINI_API_KEY is not set.")
 elif LLM_PROVIDER == "qwen":
     print(f"Using Qwen provider with endpoint: {QWEN_API_BASE} and model: {QWEN_MODEL_NAME}")
-elif LLM_PROVIDER == "qwen-local-ft":
-    print(f"Using local Hugging Face Qwen fine-tuned model adapter on base: {LOCAL_FT_BASE_MODEL}")
+

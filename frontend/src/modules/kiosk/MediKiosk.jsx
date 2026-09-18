@@ -4,19 +4,44 @@ import {
   Upload, FileText, Activity, Clock, ArrowRight, ArrowLeft, RefreshCw, Sparkles,
   Heart, Stethoscope, AlertOctagon, Info, ChevronRight, Zap, Check, X
 } from 'lucide-react';
+import { translateText } from '../../utils/translate';
 
 const API_BASE = 'http://localhost:8000/api';
 
 const INDIAN_LANGUAGES = [
-  { code: 'en', name: 'English', native: 'English', voiceLang: 'English' },
-  { code: 'hi', name: 'Hindi', native: 'हिन्दी', voiceLang: 'Hindi' },
-  { code: 'ta', name: 'Tamil', native: 'தமிழ்', voiceLang: 'Tamil' },
-  { code: 'te', name: 'Telugu', native: 'తెలుగు', voiceLang: 'Telugu' },
-  { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ', voiceLang: 'Kannada' },
-  { code: 'ml', name: 'Malayalam', native: 'മലയാളം', voiceLang: 'Malayalam' },
-  { code: 'bn', name: 'Bengali', native: 'বাংলা', voiceLang: 'Bengali' },
-  { code: 'mr', name: 'Marathi', native: 'मराठी', voiceLang: 'Marathi' },
-  { code: 'gu', name: 'Gujarati', native: 'ગુજરાતી', voiceLang: 'Gujarati' }
+  // ── Indian languages ─────────────────────────────────────
+  { code: 'en',    name: 'English',            native: 'English',         voiceLang: 'English',                  flag: '🇬🇧' },
+  { code: 'hi',    name: 'Hindi',              native: 'हिन्दी',           voiceLang: 'Hindi',                    flag: '🇮🇳' },
+  { code: 'ta',    name: 'Tamil',              native: 'தமிழ்',            voiceLang: 'Tamil',                    flag: '🇮🇳' },
+  { code: 'te',    name: 'Telugu',             native: 'తెలుగు',           voiceLang: 'Telugu',                   flag: '🇮🇳' },
+  { code: 'kn',    name: 'Kannada',            native: 'ಕನ್ನಡ',           voiceLang: 'Kannada',                  flag: '🇮🇳' },
+  { code: 'ml',    name: 'Malayalam',          native: 'മലയാളം',          voiceLang: 'Malayalam',                flag: '🇮🇳' },
+  { code: 'bn',    name: 'Bengali',            native: 'বাংলা',            voiceLang: 'Bengali',                  flag: '🇮🇳' },
+  { code: 'mr',    name: 'Marathi',            native: 'मराठी',            voiceLang: 'Marathi',                  flag: '🇮🇳' },
+  { code: 'gu',    name: 'Gujarati',           native: 'ગુજરાતી',         voiceLang: 'Gujarati',                 flag: '🇮🇳' },
+  { code: 'pa',    name: 'Punjabi',            native: 'ਪੰਜਾਬੀ',           voiceLang: 'Punjabi',                  flag: '🇮🇳' },
+  { code: 'ur',    name: 'Urdu',               native: 'اردو',             voiceLang: 'Urdu',                     flag: '🇮🇳' },
+  { code: 'or',    name: 'Odia',               native: 'ଓଡ଼ିଆ',            voiceLang: 'Odia',                     flag: '🇮🇳' },
+  { code: 'as',    name: 'Assamese',           native: 'অসমীয়া',          voiceLang: 'Assamese',                 flag: '🇮🇳' },
+  { code: 'ne',    name: 'Nepali',             native: 'नेपाली',           voiceLang: 'Nepali',                   flag: '🇳🇵' },
+  { code: 'si',    name: 'Sinhala',            native: 'සිංහල',            voiceLang: 'Sinhala',                  flag: '🇱🇰' },
+  // ── International languages ──────────────────────────────
+  { code: 'ar',    name: 'Arabic',             native: 'العربية',          voiceLang: 'Arabic',                   flag: '🌍' },
+  { code: 'fr',    name: 'French',             native: 'Français',         voiceLang: 'French',                   flag: '🇫🇷' },
+  { code: 'es',    name: 'Spanish',            native: 'Español',          voiceLang: 'Spanish',                  flag: '🇪🇸' },
+  { code: 'de',    name: 'German',             native: 'Deutsch',          voiceLang: 'German',                   flag: '🇩🇪' },
+  { code: 'pt',    name: 'Portuguese',         native: 'Português',        voiceLang: 'Portuguese',               flag: '🇧🇷' },
+  { code: 'ru',    name: 'Russian',            native: 'Русский',          voiceLang: 'Russian',                  flag: '🇷🇺' },
+  { code: 'ja',    name: 'Japanese',           native: '日本語',            voiceLang: 'Japanese',                 flag: '🇯🇵' },
+  { code: 'ko',    name: 'Korean',             native: '한국어',            voiceLang: 'Korean',                   flag: '🇰🇷' },
+  { code: 'zh-CN', name: 'Chinese (Simplified)',  native: '中文(简体)',    voiceLang: 'Chinese (Simplified)',     flag: '🇨🇳' },
+  { code: 'zh-TW', name: 'Chinese (Traditional)', native: '中文(繁體)',   voiceLang: 'Chinese (Traditional)',    flag: '🇹🇼' },
+  { code: 'it',    name: 'Italian',            native: 'Italiano',         voiceLang: 'Italian',                  flag: '🇮🇹' },
+  { code: 'tr',    name: 'Turkish',            native: 'Türkçe',           voiceLang: 'Turkish',                  flag: '🇹🇷' },
+  { code: 'id',    name: 'Indonesian',         native: 'Bahasa Indonesia', voiceLang: 'Indonesian',               flag: '🇮🇩' },
+  { code: 'vi',    name: 'Vietnamese',         native: 'Tiếng Việt',       voiceLang: 'Vietnamese',               flag: '🇻🇳' },
+  { code: 'th',    name: 'Thai',               native: 'ภาษาไทย',          voiceLang: 'Thai',                     flag: '🇹🇭' },
+  { code: 'sw',    name: 'Swahili',            native: 'Kiswahili',        voiceLang: 'Swahili',                  flag: '🌍' },
 ];
 
 const CHIEF_COMPLAINTS = [
@@ -139,13 +164,14 @@ export default function MediKiosk({ onComplete }) {
     }
   };
 
-  const playTTS = (text) => {
+  const playTTS = async (text) => {
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
     }
     setMicState('SPEAKING');
-    const audio = new Audio(`${API_BASE}/tts?text=${encodeURIComponent(text)}&language=${encodeURIComponent(selectedLanguage.voiceLang)}`);
+    const textToSpeak = await translateText(text, selectedLanguage.name);
+    const audio = new Audio(`${API_BASE}/tts?text=${encodeURIComponent(textToSpeak)}&language=${encodeURIComponent(selectedLanguage.voiceLang)}`);
     audioRef.current = audio;
     audio.play().catch((e) => console.error("Audio playback error:", e));
     audio.onended = () => setMicState('IDLE');

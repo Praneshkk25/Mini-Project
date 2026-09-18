@@ -143,7 +143,8 @@ def check_in_patient(payload: Dict[str, Any] = Body(...)):
         conn.close()
         
     # Dynamically scale arrival rate slightly to simulate real check-in load
-    DEPT_SETTINGS[department]["arrival_rate"] = round(DEPT_SETTINGS[department]["arrival_rate"] + 0.3, 1)
+    if department in DEPT_SETTINGS:
+        DEPT_SETTINGS[department]["arrival_rate"] = round(DEPT_SETTINGS[department]["arrival_rate"] + 0.3, 1)
         
     return {
         "message": "Patient checked in successfully.",
@@ -247,3 +248,64 @@ def cancel_queue_ticket(ticket_number: str):
 
     return {"message": f"Ticket {ticket_number} cancelled successfully."}
 
+
+@router.get("/token/{patient_id}")
+def get_patient_opd_token(patient_id: str):
+    """Returns the patient's active OPD queue pass, turn position, and live serving status."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT q.*, v.doctor_name as visit_doctor
+    FROM opd_queue q
+    LEFT JOIN visits v ON q.visit_id = v.visit_id
+    WHERE (q.patient_id = ? OR q.patient_name IN (SELECT name FROM patients WHERE patient_id = ?))
+      AND q.status IN ('Waiting', 'In-Consultation', 'Called Next', 'CALLED NEXT')
+    ORDER BY q.id DESC LIMIT 1
+    """, (patient_id, patient_id))
+    active_row = cursor.fetchone()
+
+    if not active_row:
+        conn.close()
+        return {"active": False, "token": None, "message": "No active OPD token for this patient."}
+
+    ticket = dict(active_row)
+    dept = ticket["department"]
+
+    # Calculate now serving ticket in this department
+    cursor.execute("""
+    SELECT ticket_number FROM opd_queue 
+    WHERE department = ? AND status = 'In-Consultation'
+    ORDER BY id ASC LIMIT 1
+    """, (dept,))
+    serving_row = cursor.fetchone()
+    now_serving = serving_row["ticket_number"] if serving_row else "01"
+
+    # Calculate patients ahead
+    cursor.execute("""
+    SELECT COUNT(*) FROM opd_queue 
+    WHERE department = ? AND status = 'Waiting' AND id < ?
+    """, (dept, ticket["id"]))
+    patients_ahead = cursor.fetchone()[0]
+    conn.close()
+
+    doctor = ticket.get("visit_doctor") or ("Dr. Sarah Jenkins" if "Cardio" in dept else "Dr. Priya Sharma")
+    room = ticket.get("room_number") or ("Room 302 (1st Floor)" if "Cardio" in dept else "Room 201 (Ground Floor)")
+
+    token_clean = ticket["ticket_number"].replace("OPD-", "").replace("ER-", "")
+    serving_clean = now_serving.replace("OPD-", "").replace("ER-", "")
+
+    return {
+        "active": True,
+        "token_number": token_clean,
+        "full_ticket": ticket["ticket_number"],
+        "department": dept,
+        "doctor": doctor,
+        "room": room,
+        "now_serving": serving_clean,
+        "patients_ahead": patients_ahead,
+        "estimated_wait_minutes": max(4, patients_ahead * 7) if ticket["status"] != "In-Consultation" else 0,
+        "status": ticket["status"].upper(),
+        "check_in_time": ticket.get("check_in_time", "Today"),
+        "last_updated": "Just now"
+    }

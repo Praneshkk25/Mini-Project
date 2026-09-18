@@ -1,0 +1,32 @@
+# Soup CLI Configuration: Qwen 2.5 Clinical Specialist
+# Fine-tune Qwen 2.5 on RTX 3050 (6 GB VRAM) with 4-bit QLoRA via Soup CLI
+
+base: Qwen/Qwen2.5-1.5B-Instruct
+task: sft
+
+data:
+  train: ./data/qwen_soup_master_dataset.jsonl
+  format: chatml
+  val_split: 0.1
+  max_length: 1024
+
+training:
+  epochs: 3
+  lr: 2e-4
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  lora:
+    r: 16
+    alpha: 32
+    target_modules:
+      - q_proj
+      - k_proj
+      - v_proj
+      - o_proj
+      - gate_proj
+      - up_proj
+      - down_proj
+  quantization: 4bit
+
+output: ./models/qwen-triage-adapter
+
