@@ -15,31 +15,65 @@ try:
     import xgboost as xgb
     import numpy as np
     import joblib
+    from app import config
     XGBOOST_AVAILABLE = True
 
     models_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models", "heart_disease"))
+    project_root = os.path.abspath(os.path.join(models_dir, "..", "..", ".."))
+    search_dirs = [models_dir, project_root]
 
-    # 1. Load Trained Tabular Clinical XGBoost Model (trained on heart.csv)
+    def _resolve_xgb_model_file(filename: str) -> Optional[str]:
+        source = getattr(config, "XGBOOST_MODEL_SOURCE", "auto")
+        # Check local paths if not explicitly forced to HF
+        if source != "huggingface":
+            for d in search_dirs:
+                candidate = os.path.join(d, filename)
+                if os.path.exists(candidate):
+                    return candidate
+
+        # If not found locally or forced to HF, download from Hugging Face repository
+        hf_repo = getattr(config, "HF_XGBOOST_REPO", "PraneshKK/careease-xgboost-models")
+        hf_token = getattr(config, "HF_TOKEN", None) or None
+        try:
+            from huggingface_hub import hf_hub_download
+            logger.info(f"Fetching {filename} from Hugging Face Hub ({hf_repo})...")
+            downloaded = hf_hub_download(
+                repo_id=hf_repo,
+                filename=filename,
+                token=hf_token
+            )
+            logger.info(f"Loaded {filename} from Hugging Face: {downloaded}")
+            return downloaded
+        except Exception as err:
+            logger.warning(f"Could not download {filename} from Hugging Face ({err}). Checking local paths...")
+            for d in search_dirs:
+                candidate = os.path.join(d, filename)
+                if os.path.exists(candidate):
+                    return candidate
+            return None
+
+    # 1. Load Trained Tabular Clinical XGBoost Model
     tab_pkl_path = os.path.join(models_dir, "xgboost_tabular_model.pkl")
-    tab_json_path = os.path.join(models_dir, "xgboost_tabular_model.json")
     if os.path.exists(tab_pkl_path):
         TABULAR_XGBOOST_MODEL = joblib.load(tab_pkl_path)
         logger.info(f"Loaded trained XGBoost Tabular model from PKL: {tab_pkl_path}")
-    elif os.path.exists(tab_json_path):
-        TABULAR_XGBOOST_MODEL = xgb.Booster()
-        TABULAR_XGBOOST_MODEL.load_model(tab_json_path)
-        logger.info(f"Loaded trained XGBoost Tabular model from JSON: {tab_json_path}")
     else:
-        logger.warning(f"Trained XGBoost tabular model not found in {models_dir}")
+        resolved_tab_json = _resolve_xgb_model_file("xgboost_tabular_model.json")
+        if resolved_tab_json and os.path.exists(resolved_tab_json):
+            TABULAR_XGBOOST_MODEL = xgb.Booster()
+            TABULAR_XGBOOST_MODEL.load_model(resolved_tab_json)
+            logger.info(f"Loaded trained XGBoost Tabular model from: {resolved_tab_json}")
+        else:
+            logger.warning(f"Trained XGBoost tabular model not found locally or on Hugging Face")
 
     # 2. Load Trained ECG Vision XGBoost Model (100-Tree Model)
-    ecg_json_path = os.path.join(models_dir, "xgboost_ecg_model.json")
-    if os.path.exists(ecg_json_path):
+    resolved_ecg_json = _resolve_xgb_model_file("xgboost_ecg_model.json")
+    if resolved_ecg_json and os.path.exists(resolved_ecg_json):
         ECG_XGBOOST_MODEL = xgb.Booster()
-        ECG_XGBOOST_MODEL.load_model(ecg_json_path)
-        logger.info(f"Loaded trained XGBoost ECG model from {ecg_json_path}")
+        ECG_XGBOOST_MODEL.load_model(resolved_ecg_json)
+        logger.info(f"Loaded trained XGBoost ECG model from: {resolved_ecg_json}")
     else:
-        logger.warning(f"Trained XGBoost ECG model not found in {models_dir}")
+        logger.warning(f"Trained XGBoost ECG model not found locally or on Hugging Face")
 
 except Exception as e:
     XGBOOST_AVAILABLE = False

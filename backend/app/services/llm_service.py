@@ -51,39 +51,71 @@ def get_fine_tuned_model_and_tokenizer():
             from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
             from peft import PeftModel
             
-            # Check if local adapter exists
+            # Resolve adapter source (local vs Hugging Face Hub)
             app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             project_root = os.path.dirname(app_dir)
-            adapter_path = os.path.join(project_root, "models", "qwen-triage-adapter")
+            local_adapter_path = os.path.join(project_root, "models", "qwen-triage-adapter")
+            hf_adapter_repo = getattr(config, "HF_QWEN_ADAPTER_REPO", "PraneshKK/careease-qwen-triage-adapter")
+            adapter_source = getattr(config, "QWEN_ADAPTER_SOURCE", "auto")
+            hf_token = getattr(config, "HF_TOKEN", None) or None
             base_model_id = config.LOCAL_FT_BASE_MODEL
-            
-            logger.info(f"Loading local tokenizer and base model: {base_model_id} on GPU...")
-            _ft_tokenizer = AutoTokenizer.from_pretrained(base_model_id, trust_remote_code=True)
+
+            if adapter_source == "huggingface":
+                adapter_target = hf_adapter_repo
+                logger.info(f"Using Hugging Face Hub adapter repo: {adapter_target}")
+            elif os.path.exists(local_adapter_path):
+                adapter_target = local_adapter_path
+                logger.info(f"Using local LoRA adapter path: {adapter_target}")
+            else:
+                adapter_target = hf_adapter_repo
+                logger.info(f"Local adapter not found. Falling back to Hugging Face Hub: {adapter_target}")
+
+            logger.info(f"Loading tokenizer and base model: {base_model_id}...")
+            _ft_tokenizer = AutoTokenizer.from_pretrained(
+                base_model_id,
+                token=hf_token,
+                trust_remote_code=True
+            )
             _ft_tokenizer.pad_token = _ft_tokenizer.eos_token
-            
+
             # Load in 4-bit for memory-saving VRAM efficiency
             bnb_config = BitsAndBytesConfig(
                 load_in_4bit=True,
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_quant_type="nf4"
             )
-            
-            base_model = AutoModelForCausalLM.from_pretrained(
-                base_model_id,
-                quantization_config=bnb_config,
-                device_map="auto",
-                trust_remote_code=True
-            )
-            
-            if os.path.exists(adapter_path):
-                logger.info(f"Loading local fine-tuned LoRA adapter from: {adapter_path}")
-                _ft_model = PeftModel.from_pretrained(base_model, adapter_path)
-            else:
-                logger.warning(f"LoRA adapter path NOT found at {adapter_path}. Defaulting to base model.")
+
+            try:
+                base_model = AutoModelForCausalLM.from_pretrained(
+                    base_model_id,
+                    quantization_config=bnb_config,
+                    device_map="auto",
+                    token=hf_token,
+                    trust_remote_code=True
+                )
+            except Exception as load_err:
+                logger.warning(f"4-bit quantized load failed ({load_err}). Attempting default load...")
+                base_model = AutoModelForCausalLM.from_pretrained(
+                    base_model_id,
+                    device_map="auto" if torch.cuda.is_available() else "cpu",
+                    token=hf_token,
+                    trust_remote_code=True
+                )
+
+            try:
+                logger.info(f"Loading fine-tuned LoRA adapter from: {adapter_target}")
+                _ft_model = PeftModel.from_pretrained(
+                    base_model,
+                    adapter_target,
+                    token=hf_token
+                )
+                logger.info("Successfully loaded fine-tuned LoRA adapter.")
+            except Exception as peft_err:
+                logger.warning(f"Could not load LoRA adapter from {adapter_target}: {peft_err}. Defaulting to base model.")
                 _ft_model = base_model
         except ImportError as e:
             raise RuntimeError(f"HuggingFace local model dependencies not available: {e}")
-            
+
     return _ft_model, _ft_tokenizer
 
 def run_local_ft_inference(prompt: str, system_prompt: str = "") -> str:

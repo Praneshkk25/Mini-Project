@@ -47,12 +47,33 @@ QWEN_MODEL_NAME = os.getenv("QWEN_MODEL_NAME", "qwen2.5:14b")
 # Local Fine-Tuned checkpoints parameters
 LOCAL_FT_BASE_MODEL = os.getenv("LOCAL_FT_BASE_MODEL", "Qwen/Qwen2.5-1.5B-Instruct")
 
+# Hugging Face Model Hub parameters
+HF_TOKEN = os.getenv("HF_TOKEN", "")
+if not HF_TOKEN:
+    try:
+        from huggingface_hub import HfFolder
+        HF_TOKEN = HfFolder.get_token() or ""
+    except Exception:
+        pass
+
+# Ensure Windows symlink warning suppression if set
+if os.getenv("HF_HUB_DISABLE_SYMLINKS_WARNING", "1") == "1":
+    os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+
+HF_XGBOOST_REPO = os.getenv("HF_XGBOOST_REPO", "PraneshKK/careease-xgboost-models")
+HF_QWEN_ADAPTER_REPO = os.getenv("HF_QWEN_ADAPTER_REPO", "PraneshKK/careease-qwen-triage-adapter")
+HF_MEDGEMMA_ADAPTER_REPO = os.getenv("HF_MEDGEMMA_ADAPTER_REPO", "PraneshKK/careease-medgemma-adapter")
+
+QWEN_ADAPTER_SOURCE = os.getenv("QWEN_ADAPTER_SOURCE", "auto").lower()
+XGBOOST_MODEL_SOURCE = os.getenv("XGBOOST_MODEL_SOURCE", "auto").lower()
+
 PORT = int(os.getenv("PORT", "8000"))
 HOST = os.getenv("HOST", "127.0.0.1")
 
 # Provider logging
-if LLM_PROVIDER == "qwen-local-ft":
-    print(f"[AI DUAL-STACK] Discharge & Triage Engine: Local Fine-Tuned Qwen LoRA ({LOCAL_FT_BASE_MODEL} + models/qwen-triage-adapter)")
+if LLM_PROVIDER in ["qwen-local-ft", "hf-qwen"]:
+    adapter_src_info = HF_QWEN_ADAPTER_REPO if QWEN_ADAPTER_SOURCE == "huggingface" else f"auto (models/qwen-triage-adapter -> {HF_QWEN_ADAPTER_REPO})"
+    print(f"[AI DUAL-STACK] Discharge & Triage Engine: Qwen LoRA ({LOCAL_FT_BASE_MODEL} + {adapter_src_info})")
     print(f"[AI DUAL-STACK] Clinical Q&A & Doctor Summaries: MedGemma via Ollama ({OLLAMA_API_BASE}, model: {MEDGEMMA_MODEL_NAME})")
 elif LLM_PROVIDER in ["medgemma", "ollama"]:
     print(f"[INFO] Using MedGemma clinical model with endpoint: {OLLAMA_API_BASE} and model: {MEDGEMMA_MODEL_NAME}")
