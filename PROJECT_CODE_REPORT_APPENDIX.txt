@@ -1,0 +1,643 @@
+================================================================================
+SMART HOSPITAL MANAGEMENT & REAL-TIME PATIENT TELEMETRY SYSTEM
+SOURCE CODE APPENDIX FOR PROJECT REPORT (PAGES 1 TO 5)
+================================================================================
+Description: This document compiles the core architectural modules of the 
+Smart Hospital Management and Patient Monitoring System. It includes real-time 
+IoT telemetry generation, clinical threshold detection, WebSocket event streaming, 
+AI-assisted triage classification, and dynamic canvas-based ECG visualization.
+
+================================================================================
+[ PAGE 1 OF 5 ] MODULE 1: IOT TELEMETRY & SENSOR SIMULATION ENGINE
+File: backend/streaming/sensor_simulator.py
+Language: Python 3.10+
+Purpose: Simulates multi-parameter bedside monitors (Heart Rate, SpO2, Blood
+         Pressure, Body Temperature, Respiratory Rate) with physiological drift
+         and dynamic critical anomaly injection.
+================================================================================
+
+import random
+import time
+import logging
+from datetime import datetime
+from typing import List, Dict, Any, Optional
+from streaming.schemas import PatientVitalEvent
+
+logger = logging.getLogger(__name__)
+
+# Representative bedside patient baseline profiles
+INITIAL_PATIENT_PROFILES = [
+    {
+        "patient_id": "PT-1001",
+        "patient_name": "Eleanor Vance",
+        "bed_id": "ICU-101",
+        "department": "ICU",
+        "attending_doctor": "Dr. Sarah Jenkins",
+        "base_hr": 72, "base_spo2": 98, "base_sys": 120, "base_dia": 78,
+        "base_temp": 36.8, "base_rr": 16
+    },
+    {
+        "patient_id": "PT-1004",
+        "patient_name": "Priya Singh",
+        "bed_id": "ER-301",
+        "department": "Emergency",
+        "attending_doctor": "Dr. Sarah Jenkins",
+        "base_hr": 110, "base_spo2": 93, "base_sys": 145, "base_dia": 92,
+        "base_temp": 38.2, "base_rr": 23
+    },
+    {
+        "patient_id": "PT-1006",
+        "patient_name": "Sita Devi",
+        "bed_id": "CCU-401",
+        "department": "Cardiology",
+        "attending_doctor": "Dr. Sarah Jenkins",
+        "base_hr": 92, "base_spo2": 94, "base_sys": 148, "base_dia": 94,
+        "base_temp": 37.3, "base_rr": 21
+    }
+]
+
+class PatientSensorSimulator:
+    """Simulates physiological vital telemetry stream with stochastic drift."""
+
+    def __init__(self, abnormal_probability: float = 0.05):
+        self.abnormal_probability = abnormal_probability
+        self.forced_critical_patients: Dict[str, float] = {}
+        self.patient_states: Dict[str, Dict[str, Any]] = {}
+        self._init_states()
+
+    def _init_states(self):
+        for p in INITIAL_PATIENT_PROFILES:
+            self.patient_states[p["patient_id"]] = {
+                "profile": p,
+                "current_hr": p["base_hr"],
+                "current_spo2": p["base_spo2"],
+                "current_sys": p["base_sys"],
+                "current_dia": p["base_dia"],
+                "current_temp": p["base_temp"],
+                "current_rr": p["base_rr"],
+            }
+
+    def trigger_critical_state(self, patient_id: str, duration_seconds: int = 30) -> bool:
+        """Forces synthetic emergency state (hypoxemia/tachycardia) for stress testing."""
+        if patient_id in self.patient_states:
+            self.forced_critical_patients[patient_id] = time.time() + duration_seconds
+            logger.info(f"[SIMULATOR] Forced CRITICAL state triggered: {patient_id}")
+            return True
+        return False
+
+    def generate_patient_event(self, patient_id: str) -> Optional[PatientVitalEvent]:
+        """Generates realistic telemetry packet for a designated patient."""
+        state = self.patient_states.get(patient_id)
+        if not state:
+            return None
+
+        p = state["profile"]
+        now_ts = time.time()
+        is_critical = (
+            patient_id in self.forced_critical_patients
+            and self.forced_critical_patients[patient_id] > now_ts
+        )
+
+        if is_critical:
+            # Inject acute vital collapse (Hypoxemia / Hypertensive Crisis)
+            hr = random.randint(145, 175)
+            spo2 = random.randint(82, 88)
+            sys_bp = random.randint(170, 195)
+            dia_bp = random.randint(105, 120)
+            temp = round(random.uniform(39.0, 40.4), 1)
+            rr = random.randint(28, 36)
+        else:
+            # Natural biological micro-fluctuations around baseline
+            hr_delta = random.choice([-2, -1, 0, 1, 2])
+            spo2_delta = random.choice([-1, 0, 0, 1])
+            sys_delta = random.choice([-2, -1, 0, 1, 2])
+            dia_delta = random.choice([-1, 0, 1])
+            temp_delta = round(random.choice([-0.1, 0.0, 0.1]), 1)
+            rr_delta = random.choice([-1, 0, 1])
+
+            hr = max(50, min(145, state["current_hr"] + hr_delta))
+            spo2 = max(88, min(100, state["current_spo2"] + spo2_delta))
+            sys_bp = max(90, min(175, state["current_sys"] + sys_delta))
+            dia_bp = max(60, min(110, state["current_dia"] + dia_delta))
+            temp = round(max(35.5, min(40.0, state["current_temp"] + temp_delta)), 1)
+            rr = max(10, min(32, state["current_rr"] + rr_delta))
+
+        # Re-center state values to avoid unbounded divergence
+        state["current_hr"] = hr
+        state["current_spo2"] = spo2
+        state["current_sys"] = sys_bp
+        state["current_dia"] = dia_bp
+        state["current_temp"] = temp
+        state["current_rr"] = rr
+
+        return PatientVitalEvent(
+            patient_id=p["patient_id"],
+            patient_name=p["patient_name"],
+            bed_id=p["bed_id"],
+            department=p["department"],
+            attending_doctor=p["attending_doctor"],
+            heart_rate=hr,
+            spo2=spo2,
+            systolic_bp=sys_bp,
+            diastolic_bp=dia_bp,
+            temperature=temp,
+            respiratory_rate=rr,
+            timestamp=datetime.utcnow().isoformat() + "Z"
+        )
+
+
+================================================================================
+[ PAGE 2 OF 5 ] MODULE 2: REAL-TIME CLINICAL ALERT & SAFETY EVALUATION ENGINE
+File: backend/app/services/alert_service.py
+Language: Python 3.10+
+Purpose: Evaluates incoming streaming patient telemetry against clinical safety
+         thresholds, assigns severity tiers (NORMAL / WARNING / CRITICAL), and
+         generates action-oriented clinical alerts.
+================================================================================
+
+import uuid
+from datetime import datetime
+from typing import Tuple, List
+from streaming.schemas import PatientVitalEvent, ProcessedPatientVital, PatientAlert
+
+def evaluate_patient_vitals(vital: PatientVitalEvent) -> Tuple[ProcessedPatientVital, List[PatientAlert]]:
+    """
+    Evaluates raw vital readings against established clinical triage guidelines.
+    Returns: (ProcessedPatientVital with status markers, List[PatientAlert])
+    """
+    alerts: List[PatientAlert] = []
+    timestamp = vital.timestamp or datetime.utcnow().isoformat() + "Z"
+
+    hr_status = "NORMAL"
+    spo2_status = "NORMAL"
+    bp_status = "NORMAL"
+    temp_status = "NORMAL"
+    rr_status = "NORMAL"
+    max_severity = "NORMAL"
+
+    # 1. Heart Rate Evaluation (bpm)
+    if vital.heart_rate > 150:
+        hr_status = max_severity = "CRITICAL"
+        alerts.append(PatientAlert(
+            alert_id=f"ALT-{uuid.uuid4().hex[:8].upper()}",
+            patient_id=vital.patient_id,
+            patient_name=vital.patient_name,
+            bed_id=vital.bed_id,
+            department=vital.department,
+            timestamp=timestamp,
+            alert_level="CRITICAL",
+            parameter="Heart Rate",
+            value=float(vital.heart_rate),
+            message=f"Severe tachycardia detected: {vital.heart_rate} bpm (>150 bpm threshold)",
+            status="ACTIVE"
+        ))
+    elif vital.heart_rate < 50:
+        hr_status = max_severity = "CRITICAL"
+        alerts.append(PatientAlert(
+            alert_id=f"ALT-{uuid.uuid4().hex[:8].upper()}",
+            patient_id=vital.patient_id,
+            patient_name=vital.patient_name,
+            bed_id=vital.bed_id,
+            department=vital.department,
+            timestamp=timestamp,
+            alert_level="CRITICAL",
+            parameter="Heart Rate",
+            value=float(vital.heart_rate),
+            message=f"Severe bradycardia detected: {vital.heart_rate} bpm (<50 bpm threshold)",
+            status="ACTIVE"
+        ))
+    elif vital.heart_rate > 120 and max_severity != "CRITICAL":
+        hr_status = max_severity = "WARNING"
+
+    # 2. SpO2 Oxygen Saturation Evaluation (%)
+    if vital.spo2 < 88:
+        spo2_status = max_severity = "CRITICAL"
+        alerts.append(PatientAlert(
+            alert_id=f"ALT-{uuid.uuid4().hex[:8].upper()}",
+            patient_id=vital.patient_id,
+            patient_name=vital.patient_name,
+            bed_id=vital.bed_id,
+            department=vital.department,
+            timestamp=timestamp,
+            alert_level="CRITICAL",
+            parameter="SpO2",
+            value=float(vital.spo2),
+            message=f"Critical hypoxemia: SpO2 dropped to {vital.spo2}% (<88% threshold)",
+            status="ACTIVE"
+        ))
+    elif vital.spo2 < 92 and max_severity != "CRITICAL":
+        spo2_status = max_severity = "WARNING"
+        alerts.append(PatientAlert(
+            alert_id=f"ALT-{uuid.uuid4().hex[:8].upper()}",
+            patient_id=vital.patient_id,
+            patient_name=vital.patient_name,
+            bed_id=vital.bed_id,
+            department=vital.department,
+            timestamp=timestamp,
+            alert_level="WARNING",
+            parameter="SpO2",
+            value=float(vital.spo2),
+            message=f"Low oxygen saturation: SpO2 is {vital.spo2}% (<92% threshold)",
+            status="ACTIVE"
+        ))
+
+    # 3. Blood Pressure Assessment (mmHg)
+    if vital.systolic_bp >= 180 or vital.diastolic_bp >= 120:
+        bp_status = max_severity = "CRITICAL"
+        alerts.append(PatientAlert(
+            alert_id=f"ALT-{uuid.uuid4().hex[:8].upper()}",
+            patient_id=vital.patient_id,
+            patient_name=vital.patient_name,
+            bed_id=vital.bed_id,
+            department=vital.department,
+            timestamp=timestamp,
+            alert_level="CRITICAL",
+            parameter="Blood Pressure",
+            value=float(vital.systolic_bp),
+            message=f"Hypertensive crisis: BP {vital.systolic_bp}/{vital.diastolic_bp} mmHg",
+            status="ACTIVE"
+        ))
+
+    # 4. Respiratory & Temperature Status
+    if vital.temperature >= 39.5:
+        temp_status = "CRITICAL"
+        max_severity = "CRITICAL"
+    if vital.respiratory_rate >= 30:
+        rr_status = "CRITICAL"
+        max_severity = "CRITICAL"
+
+    processed = ProcessedPatientVital(
+        patient_id=vital.patient_id,
+        patient_name=vital.patient_name,
+        bed_id=vital.bed_id,
+        department=vital.department,
+        attending_doctor=vital.attending_doctor,
+        heart_rate=vital.heart_rate,
+        spo2=vital.spo2,
+        systolic_bp=vital.systolic_bp,
+        diastolic_bp=vital.diastolic_bp,
+        temperature=vital.temperature,
+        respiratory_rate=vital.respiratory_rate,
+        timestamp=timestamp,
+        hr_status=hr_status,
+        spo2_status=spo2_status,
+        bp_status=bp_status,
+        temp_status=temp_status,
+        rr_status=rr_status,
+        overall_status=max_severity
+    )
+    return processed, alerts
+
+
+================================================================================
+[ PAGE 3 OF 5 ] MODULE 3: WEBSOCKET STREAMING & CONCURRENT BROADCAST SERVICE
+File: backend/app/services/monitoring_service.py & routes/monitoring.py
+Language: Python 3.10+ (FastAPI, Asyncio, WebSockets)
+Purpose: Manages bidirectional WebSocket subscriber pipelines for real-time
+         telemetry delivery to doctor monitors, history buffering, and REST APIs.
+================================================================================
+
+import asyncio
+import threading
+import logging
+from typing import Dict, List, Any, Set
+from collections import defaultdict, deque
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from streaming.schemas import ProcessedPatientVital, PatientAlert
+from app.services.alert_service import evaluate_patient_vitals
+
+logger = logging.getLogger(__name__)
+
+class ConnectionManager:
+    """Maintains active WebSocket subscribers and handles thread-safe broadcasts."""
+
+    def __init__(self):
+        self.active_connections: Set[WebSocket] = set()
+        self._lock = threading.Lock()
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        with self._lock:
+            self.active_connections.add(websocket)
+        logger.info(f"[WS] Client connected. Active clients: {len(self.active_connections)}")
+
+    def disconnect(self, websocket: WebSocket):
+        with self._lock:
+            self.active_connections.discard(websocket)
+
+    async def broadcast(self, message: Dict[str, Any]):
+        with self._lock:
+            clients = list(self.active_connections)
+        if not clients:
+            return
+
+        dead_clients = []
+        for client in clients:
+            try:
+                await client.send_json(message)
+            except Exception:
+                dead_clients.append(client)
+
+        if dead_clients:
+            with self._lock:
+                for dead in dead_clients:
+                    self.active_connections.discard(dead)
+
+class MonitoringService:
+    """Core telemetry dispatcher and historical sliding window buffer."""
+
+    def __init__(self):
+        self.ws_manager = ConnectionManager()
+        self.latest_patient_vitals: Dict[str, ProcessedPatientVital] = {}
+        self.patient_vital_history: Dict[str, deque] = defaultdict(lambda: deque(maxlen=60))
+        self.recent_alerts: deque = deque(maxlen=200)
+
+    def process_incoming_vital(self, raw_event):
+        """Processes telemetry event, updates buffer, and pushes WebSocket frames."""
+        processed_vital, alerts = evaluate_patient_vitals(raw_event)
+        p_id = processed_vital.patient_id
+
+        # Update in-memory sliding buffer
+        self.latest_patient_vitals[p_id] = processed_vital
+        self.patient_vital_history[p_id].append(processed_vital.dict())
+        for alert in alerts:
+            self.recent_alerts.appendleft(alert.dict())
+
+        # Push async broadcast event
+        msg = {
+            "type": "vital_update",
+            "vital": processed_vital.dict(),
+            "new_alerts": [a.dict() for a in alerts]
+        }
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.run_coroutine_threadsafe(self.ws_manager.broadcast(msg), loop)
+        except RuntimeError:
+            pass
+
+monitoring_service = MonitoringService()
+router = APIRouter(prefix="/api/monitoring", tags=["Real-Time Patient Monitoring"])
+
+@router.get("/patients")
+def get_monitored_patients():
+    """Returns snapshot of current vitals across all monitored beds."""
+    return list(monitoring_service.latest_patient_vitals.values())
+
+@router.get("/vitals/history/{patient_id}")
+def get_patient_history(patient_id: str, limit: int = 30):
+    """Returns recent time-series telemetry points for frontend trend charts."""
+    history = list(monitoring_service.patient_vital_history.get(patient_id, []))
+    return history[-limit:]
+
+async def handle_monitoring_websocket(websocket: WebSocket):
+    """FastAPI WebSocket route for streaming telemetry to web dashboards."""
+    await monitoring_service.ws_manager.connect(websocket)
+    try:
+        # Deliver initial state snapshot upon connection
+        await websocket.send_json({
+            "type": "initial_snapshot",
+            "vitals": list(monitoring_service.latest_patient_vitals.values()),
+            "alerts": list(monitoring_service.recent_alerts)[:20]
+        })
+        while True:
+            ping = await websocket.receive_text()
+            if ping == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        monitoring_service.ws_manager.disconnect(websocket)
+
+
+================================================================================
+[ PAGE 4 OF 5 ] MODULE 4: CLINICAL TRIAGE & AI DECISION SUPPORT SYSTEM
+File: backend/app/ai_triage.py
+Language: Python 3.10+
+Purpose: Combines Fine-Tuned Large Language Model (Qwen-2.5 LoRA) clinical symptom
+         analysis with deterministic clinical red-flag guardrails for hospital triage.
+================================================================================
+
+import logging
+import json
+from app import config
+
+logger = logging.getLogger(__name__)
+
+# Heuristic clinical department keyword dictionary
+CLINICAL_KEYWORDS = {
+    "Cardiology": ["chest pain", "breathless", "palpitation", "left arm pain", "angina"],
+    "Pediatrics": ["child", "baby", "pediatric", "infant", "vaccination", "crying"],
+    "Orthopedics": ["bone", "fracture", "joint", "knee", "back pain", "sprain", "fall"],
+    "Dermatology": ["rash", "skin", "itching", "acne", "spots", "burn", "allergy"]
+}
+
+def analyze_symptoms(symptoms_text: str) -> dict:
+    """
+    Classifies free-text patient chief complaints into target clinical departments
+    and urgency tiers (Immediate / Urgent / Routine) using Fine-Tuned LLM with safety rules.
+    """
+    raw_text = (symptoms_text or "").strip()
+    if not raw_text:
+        return {
+            "department": "General Medicine",
+            "priority": "Routine",
+            "reason": "No symptoms specified. Defaulted to General Medicine routine consultation."
+        }
+
+    # 1. Primary Engine: Fine-Tuned Local Qwen LoRA Inference
+    if config.LLM_PROVIDER == "qwen-local-ft":
+        try:
+            from app.services.llm_service import run_local_ft_inference, clean_json_string
+            system_prompt = "You are an expert hospital clinical triage officer."
+            prompt = (
+                f"Analyze patient symptoms and classify department and priority (Immediate/Urgent/Routine).\n"
+                f"Respond strictly in JSON with keys: department, priority, reason.\n"
+                f"Patient Symptoms: {raw_text}"
+            )
+            response_text = run_local_ft_inference(prompt=prompt, system_prompt=system_prompt)
+            data = json.loads(clean_json_string(response_text))
+
+            priority_raw = str(data.get("priority", "Routine")).lower()
+            if any(term in priority_raw for term in ["immediate", "critical", "stat", "emergency"]):
+                priority = "Immediate"
+            elif any(term in priority_raw for term in ["urgent", "high", "moderate"]):
+                priority = "Urgent"
+            else:
+                priority = "Routine"
+
+            department = data.get("department", "General Medicine")
+
+            # 2. Mandatory Clinical Safety Guardrail: Protect High-Risk Emergencies
+            critical_red_flags = ["chest pain", "unconscious", "severe bleeding", "difficulty breathing", "seizure", "stroke"]
+            urgent_triggers = ["high fever", "fracture", "severe pain", "infant", "deep cut"]
+            query_lower = raw_text.lower()
+
+            if any(flag in query_lower for flag in critical_red_flags):
+                priority = "Immediate"
+            elif priority == "Routine" and any(trigger in query_lower for trigger in urgent_triggers):
+                priority = "Urgent"
+
+            return {
+                "department": department,
+                "priority": priority,
+                "reason": data.get("reason", "Classified by fine-tuned clinical triage model.")
+            }
+        except Exception as e:
+            logger.warning(f"LLM triage fallback invoked due to exception: {e}")
+
+    # 3. Fallback Heuristic Rule-Based Classification
+    query_lower = raw_text.lower()
+    for dept, keywords in CLINICAL_KEYWORDS.items():
+        if any(kw in query_lower for kw in keywords):
+            prio = "Immediate" if any(w in query_lower for w in ["chest pain", "severe", "unconscious"]) else "Urgent"
+            return {
+                "department": dept,
+                "priority": prio,
+                "reason": f"Matched clinical keyword rules for {dept}."
+            }
+
+    return {
+        "department": "General Medicine",
+        "priority": "Routine",
+        "reason": "General outpatient consultation indicated."
+    }
+
+
+================================================================================
+[ PAGE 5 OF 5 ] MODULE 5: REAL-TIME DYNAMIC ECG CANVAS & VITALS MONITOR CARD
+File: doctor-app/src/components/PatientMonitorCard.jsx
+Language: React 18, JavaScript / JSX, HTML5 Canvas 2D
+Purpose: High-performance bedside telemetry widget featuring an animated sweeping
+         P-Q-R-S-T vector ECG waveform, synchronized pulse rates, and status badges.
+================================================================================
+
+import React, { useRef, useEffect } from 'react';
+import { Heart, Activity, Wind, AlertTriangle, ShieldCheck } from 'lucide-react';
+
+function MiniPatientECG({ bpm = 75, isCritical = false }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animationFrameId;
+    let lastTime = performance.now();
+    let currentX = 0;
+    let totalTime = 0;
+
+    const width = canvas.width;
+    const height = canvas.height;
+    const midY = height / 2;
+    const sweepSpeedPxPerSec = 95;
+    const cardiacPeriodSec = 60 / Math.max(40, Math.min(180, bpm));
+
+    // Electrocardiogram P-Q-R-S-T wave physiological synthesis model
+    const getECGVoltage = (phase) => {
+      let v = 0;
+      if (phase >= 0.12 && phase <= 0.22) {
+        v += 0.20 * Math.exp(-Math.pow((phase - 0.17) / 0.05, 2) * 3); // P wave
+      } else if (phase >= 0.28 && phase <= 0.31) {
+        v -= 0.25 * Math.exp(-Math.pow((phase - 0.295) / 0.015, 2) * 5); // Q dip
+      } else if (phase >= 0.31 && phase <= 0.36) {
+        v += 1.35 * Math.exp(-Math.pow((phase - 0.335) / 0.015, 2) * 7); // R spike
+      } else if (phase >= 0.36 && phase <= 0.40) {
+        v -= 0.45 * Math.exp(-Math.pow((phase - 0.38) / 0.02, 2) * 5); // S dip
+      } else if (phase >= 0.48 && phase <= 0.65) {
+        v += 0.38 * Math.exp(-Math.pow((phase - 0.565) / 0.085, 2) * 3); // T wave
+      }
+      return v + (Math.random() - 0.5) * 0.02; // Micro baseline noise
+    };
+
+    const render = (now) => {
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+      totalTime += dt;
+
+      const pixelsToAdvance = dt * sweepSpeedPxPerSec;
+      const targetX = (currentX + pixelsToAdvance) % width;
+
+      // Sweep erase beam
+      ctx.fillStyle = '#0a0f1d';
+      const wipeWidth = 16;
+      if (currentX + wipeWidth <= width) {
+        ctx.fillRect(currentX, 0, wipeWidth, height);
+      } else {
+        ctx.fillRect(currentX, 0, width - currentX, height);
+        ctx.fillRect(0, 0, (currentX + wipeWidth) % width, height);
+      }
+
+      // Draw active cardiac vector line
+      ctx.strokeStyle = isCritical ? '#ef4444' : '#10b981';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+
+      const steps = Math.max(2, Math.ceil(pixelsToAdvance * 2));
+      const stepX = (targetX >= currentX ? targetX - currentX : (width - currentX + targetX)) / steps;
+
+      for (let s = 0; s <= steps; s++) {
+        const interpX = (currentX + s * stepX) % width;
+        const phase = ((totalTime - dt + (s / steps) * dt) % cardiacPeriodSec) / cardiacPeriodSec;
+        const y = midY - getECGVoltage(phase) * (height * 0.4);
+        if (s === 0) ctx.moveTo(interpX, y);
+        else ctx.lineTo(interpX, y);
+      }
+      ctx.stroke();
+      currentX = targetX;
+      animationFrameId = requestAnimationFrame(render);
+    };
+
+    animationFrameId = requestAnimationFrame(render);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [bpm, isCritical]);
+
+  return <canvas ref={canvasRef} width={260} height={60} style={{ borderRadius: '6px' }} />;
+}
+
+export default function PatientMonitorCard({ patient, onSelect }) {
+  const isCritical = patient?.overall_status === 'CRITICAL';
+  return (
+    <div
+      onClick={() => onSelect?.(patient)}
+      style={{
+        background: isCritical ? '#450a0a' : '#1e293b',
+        border: `1px solid ${isCritical ? '#ef4444' : '#334155'}`,
+        borderRadius: '12px',
+        padding: '14px',
+        cursor: 'pointer'
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <div>
+          <h4 style={{ margin: 0, color: '#f8fafc' }}>{patient.patient_name}</h4>
+          <span style={{ fontSize: '12px', color: '#94a3b8' }}>Bed {patient.bed_id} • {patient.department}</span>
+        </div>
+        <span style={{
+          padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
+          background: isCritical ? '#dc2626' : '#059669', color: '#ffffff'
+        }}>
+          {patient.overall_status}
+        </span>
+      </div>
+
+      <MiniPatientECG bpm={patient.heart_rate} isCritical={isCritical} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', marginTop: '10px' }}>
+        <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px', textAlign: 'center' }}>
+          <span style={{ fontSize: '10px', color: '#94a3b8' }}>HEART RATE</span>
+          <div style={{ color: '#38bdf8', fontWeight: 'bold' }}>{patient.heart_rate} bpm</div>
+        </div>
+        <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px', textAlign: 'center' }}>
+          <span style={{ fontSize: '10px', color: '#94a3b8' }}>SpO2 OXYGEN</span>
+          <div style={{ color: '#34d399', fontWeight: 'bold' }}>{patient.spo2}%</div>
+        </div>
+        <div style={{ background: '#0f172a', padding: '6px', borderRadius: '6px', textAlign: 'center' }}>
+          <span style={{ fontSize: '10px', color: '#94a3b8' }}>BLOOD PRESSURE</span>
+          <div style={{ color: '#fbbf24', fontWeight: 'bold' }}>{patient.systolic_bp}/{patient.diastolic_bp}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+================================================================================
+                               END OF CODE APPENDIX
+================================================================================
