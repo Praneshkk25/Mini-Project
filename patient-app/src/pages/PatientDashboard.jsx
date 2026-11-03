@@ -211,6 +211,9 @@ export default function PatientDashboard({ patient, onNavigate }) {
           <button onClick={() => onNavigate('documents')} className="btn-secondary" style={{ padding: '10px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
             <FileText size={15} /> View Documents
           </button>
+          <button onClick={() => onNavigate('followups')} className="btn-secondary" style={{ padding: '10px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+            <Activity size={15} color="#0284c7" /> Post-Discharge Remote Care
+          </button>
           <button onClick={() => onNavigate('companion')} className="btn-secondary" style={{ padding: '10px 14px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
             <MessageSquare size={15} /> Care Companion
           </button>

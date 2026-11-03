@@ -7,10 +7,24 @@ from firebase_admin import credentials, firestore
 
 logger = logging.getLogger(__name__)
 
-KEY_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "hospital-management-c0ec1-firebase-adminsdk-fbsvc-f8916a8277.json"
-)
+def _resolve_firebase_key() -> str:
+    env_path = os.getenv("FIREBASE_KEY_PATH") or os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if env_path and os.path.exists(env_path):
+        return os.path.abspath(env_path)
+
+    filename = "hospital-management-c0ec1-firebase-adminsdk-fbsvc-f8916a8277.json"
+    candidates = [
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), filename),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), filename),
+        os.path.join(os.getcwd(), filename),
+        os.path.join(os.getcwd(), "backend", filename),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            return os.path.abspath(c)
+    return candidates[0]
+
+KEY_PATH = _resolve_firebase_key()
 
 _db = None
 

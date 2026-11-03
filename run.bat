@@ -7,6 +7,10 @@ echo   CareEase AI — Starting Complete Hospital Operations Suite
 echo =======================================================
 echo.
 
+:: Set Firebase Service Account Environment Variables
+set "FIREBASE_KEY_PATH=%~dp0hospital-management-c0ec1-firebase-adminsdk-fbsvc-f8916a8277.json"
+set "GOOGLE_APPLICATION_CREDENTIALS=%~dp0hospital-management-c0ec1-firebase-adminsdk-fbsvc-f8916a8277.json"
+
 :: 1. Backend Server
 echo [1/5] Starting Backend Server (FastAPI on Port 8000)...
 cd /d "%~dp0backend"

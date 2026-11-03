@@ -122,7 +122,7 @@ export default function App() {
     { key: 'vitals',       label: '6. My Vitals & Telemetry',        icon: '❤️' },
     { key: 'documents',    label: '7. Medical Documents',            icon: '📁' },
     { key: 'companion',    label: '8. Multilingual Care Companion',  icon: '💬' },
-    { key: 'followups',    label: '9. Follow-Up Appointments',       icon: '🔄' },
+    { key: 'followups',    label: '9. Post-Discharge Remote Care',   icon: '🔄' },
     { key: 'billing',      label: '10. My Bills & Payments',         icon: '💳' },
     { key: 'emergency',    label: '11. Emergency / Bed Search & SOS',icon: '🚨' },
   ];

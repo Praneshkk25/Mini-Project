@@ -11,7 +11,7 @@ from app.database import init_db
 from app.routes import (
     queues, beds, inventory, city_wide, auth, appointments, heart_predictor,
     billing, monitoring, intake, consultations, audit, ambulance, ai,
-    prescriptions, documents, followups, notifications
+    prescriptions, documents, followups, notifications, discharge, remote_rpm
 )
 
 # Setup logging
@@ -20,6 +20,14 @@ logger = logging.getLogger(__name__)
 
 # Initialize database tables and seed mock data
 init_db()
+
+# Initialize Firebase Firestore with Service Account Key
+try:
+    from app.firebase_db import init_firebase
+    init_firebase()
+    logger.info("Firebase Admin & Firestore connected successfully at startup.")
+except Exception as fb_err:
+    logger.warning(f"Firebase initialization warning: {fb_err}")
 
 app = FastAPI(
     title="CareEase AI & Integrated Hospital Operations Backend", 
@@ -55,6 +63,8 @@ app.include_router(city_wide.router)
 app.include_router(monitoring.router)
 app.include_router(audit.router)
 app.include_router(ambulance.router)
+app.include_router(discharge.router)
+app.include_router(remote_rpm.router)
 
 # Real-Time WebSocket endpoint for patient vital streaming
 @app.websocket("/ws/monitoring")

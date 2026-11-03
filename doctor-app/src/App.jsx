@@ -5,6 +5,7 @@ import DoctorWorkspaceView from './pages/DoctorWorkspaceView';
 import HeartPredictorView from './pages/HeartPredictorView';
 import AIDiagnosticsView from './pages/AIDiagnosticsView';
 import DischargeApprovalView from './pages/DischargeApprovalView';
+import RemoteRPMDoctorView from './pages/RemoteRPMDoctorView';
 import RealTimeMonitoringView from './pages/RealTimeMonitoringView';
 import DoctorProfileSettingsView from './pages/DoctorProfileSettingsView';
 import DoctorClinicalCommunications from './components/DoctorClinicalCommunications';
@@ -79,7 +80,8 @@ export default function App() {
     { key: 'heart-predictor', label: '5. AI Clinical Decision Support', icon: '🧠' },
     { key: 'diagnostics', label: '6. AI Imaging & Scans', icon: '🔬' },
     { key: 'prescriptions-orders', label: '7. Prescriptions & Orders', icon: '💊' },
-    { key: 'discharge', label: '8. Discharge Approvals', icon: '📝' }
+    { key: 'discharge', label: '8. Discharge Approvals', icon: '📝' },
+    { key: 'remote-rpm', label: '9. Post-Discharge Remote RPM', icon: '📡' }
   ];
 
   return (
@@ -239,7 +241,8 @@ export default function App() {
           {activeTab === 'heart-predictor' && <HeartPredictorView user={user} />}
           {activeTab === 'diagnostics' && <AIDiagnosticsView />}
           {activeTab === 'prescriptions-orders' && <DoctorWorkspaceView user={user} initialSubTab="prescription" />}
-          {activeTab === 'discharge' && <DischargeApprovalView />}
+          {activeTab === 'discharge' && <DischargeApprovalView user={user} onNavigate={setActiveTab} />}
+          {activeTab === 'remote-rpm' && <RemoteRPMDoctorView user={user} />}
           {activeTab === 'profile' && <DoctorProfileSettingsView doctor={user} onUpdateDoctor={handleUpdateDoctor} />}
         </main>
       </div>

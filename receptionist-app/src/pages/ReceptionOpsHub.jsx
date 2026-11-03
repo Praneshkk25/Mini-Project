@@ -33,6 +33,7 @@ import DepartmentManagementView from './DepartmentManagementView';
 import ReportsAnalyticsView from './ReportsAnalyticsView';
 import AuditLogsView from './AuditLogsView';
 import HospitalAdminDashboardView from './HospitalAdminDashboardView';
+import DischargeDeskManager from '../components/DischargeDeskManager';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -87,6 +88,42 @@ export default function ReceptionOpsHub({ activeTab = 'dashboard', user, onSelec
       priority: 'Urgent'
     }
   ]);
+
+  const fetchLiveAppointments = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/appointments/list`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped = data.map((apt, idx) => ({
+            id: apt.appointment_token || `APT-2026-${apt.id || idx + 1}`,
+            appointment_token: apt.appointment_token || `0${idx + 1}`,
+            patient_name: apt.patient_name,
+            uhid: apt.uhid || (apt.patient_id ? `UHID-2026-${apt.patient_id.replace('PT-', '')}` : `UHID-2026-${Math.floor(100000 + Math.random() * 900000)}`),
+            patient_age: apt.patient_age || 40,
+            gender: apt.gender || 'Male',
+            phone: apt.phone || '+91 98400 11111',
+            doctor_name: apt.doctor_name,
+            department: apt.department,
+            date: apt.appointment_date || (apt.date_time ? apt.date_time.split(' • ')[0] : '2026-08-31'),
+            time_slot: apt.slot_time || (apt.date_time && apt.date_time.includes('•') ? apt.date_time.split(' • ')[1] : '10:00 AM'),
+            type: apt.reason || apt.type || 'Routine Consultation',
+            status: apt.status || 'Scheduled',
+            priority: apt.priority || 'Routine'
+          }));
+          setAppointments(mapped);
+        }
+      }
+    } catch (e) {
+      // quiet poll
+    }
+  };
+
+  useEffect(() => {
+    fetchLiveAppointments();
+    const timer = setInterval(fetchLiveAppointments, 3000);
+    return () => clearInterval(timer);
+  }, []);
 
   const [beds, setBeds] = useState([
     { bed_number: 'ICU-101', ward: 'ICU', room: 'Suite 1', status: 'OCCUPIED', patient_name: 'Eleanor Vance', doctor: 'Dr. Sarah Jenkins' },
@@ -299,8 +336,8 @@ export default function ReceptionOpsHub({ activeTab = 'dashboard', user, onSelec
     setRegStep(1);
   };
 
-  // 2. Submit Appointment Booking
-  const handleBookAppointmentSubmit = (e) => {
+  // 2. Submit Appointment Booking (Real-Time API Sync + Polling)
+  const handleBookAppointmentSubmit = async (e) => {
     e.preventDefault();
     // Validate doctor schedule
     const doctorObj = INITIAL_DOCTORS.find((d) => d.name === newAptData.doctor_name);
@@ -310,6 +347,37 @@ export default function ReceptionOpsHub({ activeTab = 'dashboard', user, onSelec
       return;
     }
 
+    try {
+      const payload = {
+        patient_name: newAptData.patient_name,
+        patient_age: 40,
+        doctor_name: newAptData.doctor_name,
+        department: newAptData.department,
+        appointment_date: newAptData.date,
+        slot_time: newAptData.time_slot,
+        reason: newAptData.type || 'Routine Consultation',
+        fee_inr: 600.0,
+        phone: newAptData.phone || '+91 98400 11111'
+      };
+      const res = await fetch(`${API_BASE}/appointments/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        setShowBookAptModal(false);
+        await fetchLiveAppointments();
+        alert(`✓ Appointment booked in real-time for ${newAptData.patient_name} with ${newAptData.doctor_name}!`);
+        return;
+      } else {
+        const err = await res.json();
+        alert(`Booking Notice: ${err.detail || 'Could not complete'}`);
+      }
+    } catch (err) {
+      console.warn('Real-time booking network fallback:', err);
+    }
+
+    // Local fallback
     const created = {
       id: `APT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
       appointment_token: `0${appointments.length + 1}`,
@@ -326,10 +394,9 @@ export default function ReceptionOpsHub({ activeTab = 'dashboard', user, onSelec
       status: 'Scheduled',
       priority: newAptData.priority
     };
-
     setAppointments([created, ...appointments]);
     setShowBookAptModal(false);
-    alert(`✓ Appointment booked for ${created.patient_name} with ${created.doctor_name} on ${created.date} at ${created.time_slot}`);
+    alert(`✓ Appointment registered for ${created.patient_name}`);
   };
 
   // 3. Complete 5-Step Triage & Check-in
@@ -1364,55 +1431,7 @@ export default function ReceptionOpsHub({ activeTab = 'dashboard', user, onSelec
 
       {/* 8. DISCHARGE DESK */}
       {activeTab === 'discharge' && (
-        <div>
-          <div style={{ marginBottom: '20px' }}>
-            <h1 style={{ fontSize: '24px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-              Discharge Clearance Desk
-            </h1>
-            <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
-              Verify physician approval, finalize itemized invoice in INR (₹), and trigger bed turnaround.
-            </p>
-          </div>
-
-          <div className="card" style={{ padding: '20px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #cbd5e1', background: '#f8fafc', color: '#64748b' }}>
-                  <th style={{ padding: '10px' }}>Patient</th>
-                  <th style={{ padding: '10px' }}>UHID</th>
-                  <th style={{ padding: '10px' }}>Bed</th>
-                  <th style={{ padding: '10px' }}>Attending Doctor</th>
-                  <th style={{ padding: '10px' }}>Doctor Approval</th>
-                  <th style={{ padding: '10px' }}>Billing Status</th>
-                  <th style={{ padding: '10px', textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '10px', fontWeight: 800 }}>James Robertson</td>
-                  <td style={{ padding: '10px', color: '#0284c7' }}>UHID-2026-884920</td>
-                  <td style={{ padding: '10px' }}>ICU-101</td>
-                  <td style={{ padding: '10px' }}>Dr. Sarah Jenkins</td>
-                  <td style={{ padding: '10px' }}>
-                    <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                      ✓ Signed & Approved
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px' }}>
-                    <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
-                      ₹1,200 (PAID)
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px', textAlign: 'right' }}>
-                    <button onClick={() => handleFinalizeDischarge('James Robertson', 'ICU-101')} className="btn-primary" style={{ fontSize: '11px', padding: '5px 10px' }}>
-                      Finalize Discharge
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <DischargeDeskManager user={user} />
       )}
 
       {/* 9. BILLING & PAYMENTS (INR ₹) */}

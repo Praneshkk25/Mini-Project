@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { Heart, Activity, Thermometer, Wind, Stethoscope, AlertTriangle, ShieldCheck } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { Heart, Activity, Thermometer, Wind, Stethoscope, AlertTriangle, ShieldCheck, Brain, ChevronDown, ChevronUp, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
 
 function MiniPatientECG({ bpm = 75, isCritical = false }) {
   const canvasRef = useRef(null);
@@ -124,6 +124,8 @@ function MiniPatientECG({ bpm = 75, isCritical = false }) {
 }
 
 export default function PatientMonitorCard({ patient, onClick, onTriggerCritical }) {
+  const [showCds, setShowCds] = useState(false);
+
   if (!patient) return null;
 
   const {
@@ -148,6 +150,34 @@ export default function PatientMonitorCard({ patient, onClick, onTriggerCritical
   const isCritical = overall_status === 'CRITICAL';
   const isWarning = overall_status === 'WARNING';
 
+  // Derived or backend-provided NEWS2 & CDS properties
+  const news2Score = patient.news2_score !== undefined
+    ? patient.news2_score
+    : isCritical ? 8 : isWarning ? 4 : 1;
+
+  const riskClassification = patient.risk_classification ||
+    (news2Score >= 7 || isCritical ? 'HIGH' : news2Score >= 5 || isWarning ? 'MODERATE' : 'LOW');
+
+  const deteriorationPct = patient.deterioration_probability !== undefined
+    ? Math.round(patient.deterioration_probability * 100)
+    : isCritical ? 78 : isWarning ? 34 : 6;
+
+  const cdsInsights = Array.isArray(patient.cds_insights) && patient.cds_insights.length > 0
+    ? patient.cds_insights
+    : isCritical
+      ? ['Acute deterioration trajectory identified. NEWS2 >= 7 requires emergency medical team review.', 'Oxygenation compromise or hemodynamic instability detected.']
+      : isWarning
+        ? ['Vital signs indicate moderate physiological stress. Trend trending upward in last 2 hours.']
+        : ['Physiological vitals remain within doctor-defined baseline stability limits.'];
+
+  const cdsRecommendations = Array.isArray(patient.cds_recommendations) && patient.cds_recommendations.length > 0
+    ? patient.cds_recommendations
+    : isCritical
+      ? ['Immediate bedside review by Registrar / ICU Outreach', 'Titrate high-flow oxygen to achieve SpO2 >= 94%', 'Perform arterial blood gas (ABG) and repeat serum lactate']
+      : isWarning
+        ? ['Increase monitoring frequency to every 30 minutes', 'Verify IV line patency and medication adherence']
+        : ['Continue routine ward observation protocol (q4h)'];
+
   const cardBorder = isCritical
     ? '2px solid #ef4444'
     : isWarning
@@ -163,6 +193,12 @@ export default function PatientMonitorCard({ patient, onClick, onTriggerCritical
   const badgeBg = isCritical
     ? '#ef4444'
     : isWarning
+    ? '#f59e0b'
+    : '#10b981';
+
+  const riskBadgeBg = riskClassification === 'HIGH'
+    ? '#ef4444'
+    : riskClassification === 'MODERATE'
     ? '#f59e0b'
     : '#10b981';
 
@@ -249,6 +285,45 @@ export default function PatientMonitorCard({ patient, onClick, onTriggerCritical
         </div>
       </div>
 
+      {/* Predictive Deterioration & NEWS2 Score Strip (Module 1) */}
+      <div
+        style={{
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid #334155',
+          borderRadius: '10px',
+          padding: '8px 10px',
+          marginBottom: '10px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '11px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span
+            style={{
+              background: riskBadgeBg,
+              color: '#fff',
+              fontWeight: 800,
+              fontSize: '10px',
+              padding: '2px 6px',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
+            }}
+          >
+            NEWS2: {news2Score}
+          </span>
+          <span style={{ color: riskBadgeBg, fontWeight: 700 }}>
+            {riskClassification} RISK
+          </span>
+        </div>
+        <div style={{ color: '#94a3b8', fontSize: '11px' }}>
+          Deterioration: <strong style={{ color: riskClassification === 'HIGH' ? '#ef4444' : '#38bdf8' }}>{deteriorationPct}%</strong> (2-4h)
+        </div>
+      </div>
+
       {/* Vitals Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
         {/* Heart Rate */}
@@ -303,6 +378,81 @@ export default function PatientMonitorCard({ patient, onClick, onTriggerCritical
 
       {/* Embedded Live Telemetry Lead II Strip for EACH Patient */}
       <MiniPatientECG bpm={heart_rate || 75} isCritical={isCritical} />
+
+      {/* AI Clinical Decision Support (CDS) Drawer Button */}
+      <div style={{ marginTop: '10px' }}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowCds(!showCds);
+          }}
+          style={{
+            width: '100%',
+            background: showCds ? '#0284c7' : 'rgba(2, 132, 199, 0.15)',
+            border: '1px solid rgba(2, 132, 199, 0.4)',
+            color: showCds ? '#ffffff' : '#38bdf8',
+            borderRadius: '8px',
+            padding: '6px 10px',
+            fontSize: '11px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            transition: 'background 0.2s',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Brain size={13} /> AI Clinical Decision Support (CDS)
+          </span>
+          {showCds ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+        </button>
+
+        {showCds && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              marginTop: '6px',
+              background: '#090d16',
+              border: '1px solid #1e293b',
+              borderRadius: '8px',
+              padding: '10px',
+              fontSize: '11px',
+              color: '#e2e8f0',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#38bdf8', fontWeight: 700, marginBottom: '6px' }}>
+              <Sparkles size={12} /> Predictive Insights:
+            </div>
+            <ul style={{ margin: '0 0 8px 14px', padding: 0, color: '#cbd5e1' }}>
+              {cdsInsights.map((insight, idx) => (
+                <li key={idx} style={{ marginBottom: '3px' }}>{insight}</li>
+              ))}
+            </ul>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981', fontWeight: 700, marginBottom: '4px' }}>
+              <CheckCircle2 size={12} /> Next Steps for Review:
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {cdsRecommendations.map((rec, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.1)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    color: '#6ee7b7',
+                    fontSize: '10.5px',
+                  }}
+                >
+                  &bull; {rec}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

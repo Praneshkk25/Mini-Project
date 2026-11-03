@@ -82,3 +82,6 @@ elif LLM_PROVIDER == "gemini" and not GEMINI_API_KEY:
 elif LLM_PROVIDER == "qwen":
     print(f"Using Qwen provider with endpoint: {QWEN_API_BASE} and model: {QWEN_MODEL_NAME}")
 
+
+# Firebase Admin SDK Configuration
+FIREBASE_KEY_PATH = os.getenv("FIREBASE_KEY_PATH", "hospital-management-c0ec1-firebase-adminsdk-fbsvc-f8916a8277.json")

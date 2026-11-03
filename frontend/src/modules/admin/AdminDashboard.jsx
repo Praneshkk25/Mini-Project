@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { MOCK_ADMIN_ANALYTICS } from '../../data/mockData';
 import StatCard from '../../components/common/StatCard';
 import DataTable from '../../components/common/DataTable';
@@ -6,6 +6,14 @@ import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, Cart
 
 export default function AdminDashboard() {
   const { avgWaitTime, dailyInflow, bedTurnover, dischargeEfficiency, inflowTrend, deptWaitTimes, staffAllocation, bottlenecks } = MOCK_ADMIN_ANALYTICS;
+  const [readinessList, setReadinessList] = useState([]);
+
+  useEffect(() => {
+    fetch('http://localhost:8000/api/discharge/readiness')
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setReadinessList(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
 
   const staffColumns = [
     { header: 'Department', accessor: 'department' },
@@ -174,6 +182,72 @@ export default function AdminDashboard() {
         </div>
 
         <DataTable columns={staffColumns} data={staffAllocation} />
+      </div>
+
+      {/* Module 2: Predictive Bed Turnover & Intelligent Discharge Readiness */}
+      <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '24px', marginBottom: '28px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🛏️ Predictive Bed Turnover & Discharge Readiness (Module 2)
+            </h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#94a3b8' }}>
+              Anticipating bed releases 2–3 hours ahead via clinical stability & operational clearance scoring
+            </p>
+          </div>
+          <span style={{ background: '#0284c7', color: '#fff', fontSize: '11px', fontWeight: 800, padding: '3px 10px', borderRadius: '12px' }}>
+            {readinessList.filter(p => p.readiness_score >= 80).length} Beds Freeing Up Soon (&ge; 80% Ready)
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
+          {(readinessList.length > 0 ? readinessList : [
+            { patient_id: 'PT-1002', patient_name: 'Eleanor Vance', bed_number: 'ICU-02', readiness_score: 82, estimated_prep_time: '2–3 hrs', clinical_stability: 'Stable', delay_reason: 'Awaiting laboratory clearance: Serum Troponin-I' },
+            { patient_id: 'PT-1001', patient_name: 'James Robertson', bed_number: 'GW-101', readiness_score: 92, estimated_prep_time: '< 30 mins', clinical_stability: 'Stable', delay_reason: 'All clearances verified. Ready for final physician sign-off.' }
+          ]).map((pt) => {
+            const sc = pt.readiness_score || 80;
+            const scColor = sc >= 80 ? '#10b981' : sc >= 60 ? '#f59e0b' : '#ef4444';
+            return (
+              <div
+                key={pt.patient_id}
+                style={{
+                  background: '#0f172a',
+                  border: `1px solid ${scColor}`,
+                  borderRadius: '12px',
+                  padding: '16px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '15px', color: '#f8fafc', fontWeight: 800 }}>
+                      {pt.patient_name}
+                    </h4>
+                    <span style={{ fontSize: '12px', color: '#38bdf8' }}>
+                      Bed: <strong>{pt.bed_number || 'ICU-02'}</strong> &bull; {pt.patient_id}
+                    </span>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '20px', fontWeight: 900, color: scColor }}>
+                      {sc}%
+                    </div>
+                    <span style={{ fontSize: '10px', color: '#94a3b8' }}>readiness</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', fontSize: '11px', color: '#cbd5e1', marginBottom: '8px', background: '#1e293b', padding: '6px 10px', borderRadius: '6px' }}>
+                  <span>ETA: <strong style={{ color: '#38bdf8' }}>{pt.estimated_prep_time || '2–3 hrs'}</strong></span>
+                  <span>&bull;</span>
+                  <span>Vitals: <strong style={{ color: '#10b981' }}>{pt.clinical_stability || 'Stable'}</strong></span>
+                </div>
+
+                <p style={{ margin: 0, fontSize: '11px', color: '#94a3b8', lineHeight: 1.4 }}>
+                  {pt.delay_reason}
+                </p>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* 4. Real-time Bottlenecks & Operational Alerts */}

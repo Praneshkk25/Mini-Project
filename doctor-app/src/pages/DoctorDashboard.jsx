@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Stethoscope, Clock, User, Heart, Activity, AlertTriangle, ArrowRight, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Stethoscope, Clock, User, Heart, Activity, AlertTriangle, ArrowRight, RefreshCw, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 export default function DoctorDashboard({ user, onSelectPatient, onNavigate }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [escalationsCount, setEscalationsCount] = useState(0);
 
   useEffect(() => {
-    fetchAppointments();
+    fetchAppointments(true);
+    // Real-Time 3s Polling for Instant Booking Reflection
+    const timer = setInterval(() => {
+      fetchAppointments(false);
+    }, 3000);
+    return () => clearInterval(timer);
   }, []);
 
-  const fetchAppointments = async () => {
-    setLoading(true);
+  const fetchAppointments = async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     try {
       const res = await fetch('http://localhost:8000/api/appointments/list');
       if (res.ok) {
@@ -19,8 +25,18 @@ export default function DoctorDashboard({ user, onSelectPatient, onNavigate }) {
       }
     } catch (e) {
       console.error(e);
+    }
+
+    try {
+      const escRes = await fetch('http://localhost:8000/api/remote-rpm/doctor/escalations');
+      if (escRes.ok) {
+        const escData = await escRes.json();
+        setEscalationsCount(Array.isArray(escData) ? escData.length : 0);
+      }
+    } catch (e) {
+      console.warn('Could not fetch escalations count:', e);
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   };
 
@@ -48,30 +64,86 @@ export default function DoctorDashboard({ user, onSelectPatient, onNavigate }) {
         </div>
       </div>
 
-      {/* 4 Stat KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      {/* Urgent Post-Discharge Alert Banner if any escalation is active */}
+      {escalationsCount > 0 && (
+        <div
+          onClick={() => onNavigate && onNavigate('remote-rpm')}
+          style={{
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%)',
+            border: '2px solid #ef4444',
+            borderRadius: '12px',
+            padding: '14px 20px',
+            marginBottom: '20px',
+            cursor: 'pointer',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.15)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <ShieldAlert size={24} color="#ef4444" className="animate-pulse" />
+            <div>
+              <div style={{ fontSize: '14px', fontWeight: 800, color: '#991b1b' }}>
+                🚨 Urgent Clinical Alert: {escalationsCount} Post-Discharge Patient{escalationsCount > 1 ? 's' : ''} Reported High-Risk Red Flags!
+              </div>
+              <div style={{ fontSize: '12px', color: '#7f1d1d' }}>
+                Module 3 Remote Care: Patient symptoms flagged by AI triage requiring physician review & instructions.
+              </div>
+            </div>
+          </div>
+          <button
+            className="btn-primary"
+            style={{ background: '#ef4444', fontSize: '12px', padding: '6px 14px', border: 'none' }}
+          >
+            Review Escalations <ArrowRight size={13} />
+          </button>
+        </div>
+      )}
+
+      {/* 5 Stat KPI Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div className="card" style={{ padding: '18px', borderLeft: '4px solid #0284c7', marginBottom: 0 }}>
-          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Today's Scheduled Consults</p>
+          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Today's Consults</p>
           <h2 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0', color: '#0f172a' }}>{totalCount}</h2>
           <span style={{ fontSize: '12px', color: '#0284c7', fontWeight: 600 }}>{completedCount} Completed</span>
         </div>
 
         <div className="card" style={{ padding: '18px', borderLeft: '4px solid #f59e0b', marginBottom: 0 }}>
-          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>OPD Patients Waiting</p>
+          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>OPD Waiting</p>
           <h2 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0', color: '#f59e0b' }}>{waitingCount}</h2>
           <span style={{ fontSize: '12px', color: '#f59e0b', fontWeight: 600 }}>M/M/c Active Flow</span>
         </div>
 
         <div className="card" style={{ padding: '18px', borderLeft: '4px solid #10b981', marginBottom: 0 }}>
-          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>MediKiosk Intake Completed</p>
+          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>MediKiosk Intake</p>
           <h2 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0', color: '#10b981' }}>{totalCount > 0 ? totalCount - 1 : 0}</h2>
-          <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>AI Draft Summary Ready</span>
+          <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>AI Draft Summary</span>
         </div>
 
-        <div className="card" style={{ padding: '18px', borderLeft: '4px solid #ef4444', marginBottom: 0 }}>
-          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Critical Telemetry Alerts</p>
-          <h2 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0', color: '#10b981' }}>0</h2>
-          <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 600 }}>All Vitals Stable</span>
+        <div className="card" style={{ padding: '18px', borderLeft: '4px solid #06b6d4', marginBottom: 0 }}>
+          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Inpatient Telemetry</p>
+          <h2 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0', color: '#06b6d4' }}>Active</h2>
+          <span style={{ fontSize: '12px', color: '#06b6d4', fontWeight: 600 }}>NEWS2 CDS Live</span>
+        </div>
+
+        <div
+          className="card"
+          onClick={() => onNavigate && onNavigate('remote-rpm')}
+          style={{
+            padding: '18px',
+            borderLeft: `4px solid ${escalationsCount > 0 ? '#ef4444' : '#10b981'}`,
+            marginBottom: 0,
+            cursor: 'pointer'
+          }}
+        >
+          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Post-Discharge Alerts</p>
+          <h2 style={{ fontSize: '28px', fontWeight: 800, margin: '4px 0', color: escalationsCount > 0 ? '#ef4444' : '#10b981' }}>
+            {escalationsCount}
+          </h2>
+          <span style={{ fontSize: '12px', color: escalationsCount > 0 ? '#ef4444' : '#10b981', fontWeight: 600 }}>
+            {escalationsCount > 0 ? 'Urgent Action Required' : 'All Recovering Safely'}
+          </span>
         </div>
       </div>
 

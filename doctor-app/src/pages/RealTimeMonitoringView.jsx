@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, ShieldAlert, Play, Square, Zap, RefreshCw, AlertCircle, Info, Heart, CheckCircle2 } from 'lucide-react';
+import { Activity, ShieldAlert, Play, Square, Zap, RefreshCw, AlertCircle, Info, Heart, CheckCircle2, Brain, Sparkles } from 'lucide-react';
 import PatientMonitorCard from '../components/PatientMonitorCard';
 import VitalChart from '../components/VitalChart';
 import AlertPanel from '../components/AlertPanel';
@@ -657,6 +657,74 @@ export default function RealTimeMonitoringView({ user }) {
                 <span style={{ fontSize: '12px', color: '#94a3b8' }}>Resp. Rate</span>
                 <div style={{ fontSize: '20px', fontWeight: '800', color: '#a855f7', marginTop: '2px' }}>
                   {selectedPatient.respiratory_rate} <span style={{ fontSize: '10px' }}>/m</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Module 1: AI Clinical Decision Support & Predictive Deterioration Analysis */}
+            <div style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '14px', padding: '16px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Brain size={18} color="#38bdf8" />
+                  <span style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc' }}>
+                    AI Predictive Deterioration Analysis & Early Warning
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span
+                    style={{
+                      background: (selectedPatient.news2_score >= 7 || selectedPatient.overall_status === 'CRITICAL') ? '#ef4444' : (selectedPatient.news2_score >= 5 || selectedPatient.overall_status === 'WARNING') ? '#f59e0b' : '#10b981',
+                      color: '#ffffff',
+                      fontWeight: 800,
+                      fontSize: '11px',
+                      padding: '3px 10px',
+                      borderRadius: '20px',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    NEWS2: {selectedPatient.news2_score !== undefined ? selectedPatient.news2_score : (selectedPatient.overall_status === 'CRITICAL' ? 8 : selectedPatient.overall_status === 'WARNING' ? 4 : 1)} &bull; {selectedPatient.risk_classification || (selectedPatient.overall_status === 'CRITICAL' ? 'HIGH' : selectedPatient.overall_status === 'WARNING' ? 'MODERATE' : 'LOW')} RISK
+                  </span>
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>
+                    Deterioration: <strong style={{ color: (selectedPatient.overall_status === 'CRITICAL' || selectedPatient.news2_score >= 7) ? '#ef4444' : '#38bdf8' }}>{selectedPatient.deterioration_probability !== undefined ? Math.round(selectedPatient.deterioration_probability * 100) : (selectedPatient.overall_status === 'CRITICAL' ? 78 : selectedPatient.overall_status === 'WARNING' ? 34 : 6)}%</strong> (2-4h)
+                  </span>
+                </div>
+              </div>
+
+              {/* Insights */}
+              <div style={{ background: 'rgba(2, 132, 199, 0.08)', border: '1px solid rgba(2, 132, 199, 0.2)', borderRadius: '8px', padding: '10px 14px', marginBottom: '10px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#38bdf8', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sparkles size={13} /> AI Clinical Insights:
+                </div>
+                <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '12px', color: '#cbd5e1' }}>
+                  {(selectedPatient.cds_insights && selectedPatient.cds_insights.length > 0
+                    ? selectedPatient.cds_insights
+                    : (selectedPatient.overall_status === 'CRITICAL'
+                        ? ['Elevated clinical deterioration risk. Hemodynamic or respiratory readings require critical review.']
+                        : ['Patient physiological parameters remain within configured stable bounds.']
+                      )
+                  ).map((ins, i) => (
+                    <li key={i} style={{ marginBottom: '2px' }}>{ins}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Recommendations */}
+              <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '8px', padding: '10px 14px' }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#10b981', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <CheckCircle2 size={13} /> Recommended Next Steps for Attending Clinician:
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px' }}>
+                  {(selectedPatient.cds_recommendations && selectedPatient.cds_recommendations.length > 0
+                    ? selectedPatient.cds_recommendations
+                    : (selectedPatient.overall_status === 'CRITICAL'
+                        ? ['Review airway, breathing, circulation urgently', 'Verify IV access and order arterial blood gas', 'Consult Senior Registrar or ICU Outreach team']
+                        : ['Continue routine ward observation protocol (q4h)', 'Maintain hydration and charted medications']
+                      )
+                  ).map((rec, i) => (
+                    <div key={i} style={{ background: '#090d16', padding: '6px 10px', borderRadius: '6px', fontSize: '11.5px', color: '#a7f3d0', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                      &bull; {rec}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

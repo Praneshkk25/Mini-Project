@@ -222,6 +222,45 @@ def init_db():
     )
     """)
 
+    # 11b. Discharge Summaries Table (Receptionist Draft -> Doctor Review & Prescription -> Approved)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS discharge_summaries (
+        summary_id TEXT PRIMARY KEY,
+        patient_id TEXT NOT NULL,
+        patient_name TEXT NOT NULL,
+        uhid TEXT,
+        age INTEGER,
+        gender TEXT,
+        bed_number TEXT,
+        department TEXT,
+        doctor_id TEXT,
+        doctor_name TEXT NOT NULL,
+        admission_date TEXT,
+        discharge_date TEXT,
+        chief_complaint TEXT,
+        primary_diagnosis TEXT,
+        secondary_diagnosis TEXT,
+        hospital_course TEXT,
+        condition_at_discharge TEXT DEFAULT 'Stable',
+        vitals_json TEXT,
+        investigations_json TEXT,
+        procedures_json TEXT,
+        medications_json TEXT,
+        diet_lifestyle_instructions TEXT,
+        follow_up_date TEXT,
+        follow_up_dept TEXT,
+        receptionist_notes TEXT,
+        doctor_notes TEXT,
+        status TEXT NOT NULL DEFAULT 'PENDING_DOCTOR_REVIEW',
+        created_by_role TEXT DEFAULT 'RECEPTIONIST',
+        created_by_name TEXT,
+        signed_by_doctor TEXT,
+        signed_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """)
+
     # 12. OPD Queue Table
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS opd_queue (
@@ -727,10 +766,14 @@ def init_db():
              "+91 99001 55667", "44 Brigade Road, Bengaluru 560025",
              "Arun Krishnamurthy (Spouse) - +91 99001 55668", "AB−", "Ibuprofen", t_now),
         ]
+        mock_patients_with_mrn = [
+            (p[0], f"MRN-{p[0][3:]}", p[1], p[2], p[3], p[4], p[5], p[6], p[7], "patient123", p[8], p[9], p[10], p[11], p[12])
+            for p in mock_patients
+        ]
         cursor.executemany("""
-        INSERT INTO patients (patient_id, uhid, abha_id, name, age, gender, dob, phone, address, emergency_contact, blood_group, allergies, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, mock_patients)
+        INSERT INTO patients (patient_id, mrn, uhid, abha_id, name, age, gender, dob, phone, password, address, emergency_contact, blood_group, allergies, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, mock_patients_with_mrn)
 
         # ── 2. VISITS ────────────────────────────────────────────────
         mock_visits = [

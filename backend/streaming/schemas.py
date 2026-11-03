@@ -26,6 +26,11 @@ class ProcessedPatientVital(PatientVitalEvent):
     respiratory_rate_status: str = Field("NORMAL", example="NORMAL")
     overall_status: str = Field("NORMAL", example="NORMAL")  # NORMAL, WARNING, CRITICAL
     alert_level: str = Field("NORMAL", example="NORMAL")
+    news2_score: int = Field(0, example=2)
+    risk_classification: str = Field("LOW", example="LOW")  # LOW, MODERATE, HIGH
+    deterioration_probability: float = Field(0.04, example=0.12)
+    cds_insights: str = Field("", example="Vitals hemodynamically stable within normal limits.")
+    cds_recommendations: List[str] = Field(default_factory=list)
 
 class PatientAlert(BaseModel):
     alert_id: str = Field(..., example="ALT-98231")
